@@ -1,0 +1,18 @@
+{
+  "$meta": {
+    "dataset": "competitors",
+    "isMock": true,
+    "sourceName": "Seed competitor list (illustrative)",
+    "note": "A starting list of well-known online travel brands used to demonstrate competitor and AI-visibility tracking. No performance metrics are implied. Replace with your real competitive set in the dashboard.",
+    "retrievedAt": "2026-01-01T00:00:00.000Z"
+  },
+  "competitors": [
+    { "name": "Skyscanner", "domain": "skyscanner.net", "type": "METASEARCH", "isPrimary": true },
+    { "name": "Kayak", "domain": "kayak.com", "type": "METASEARCH", "isPrimary": true },
+    { "name": "Expedia", "domain": "expedia.com", "type": "OTA", "isPrimary": true },
+    { "name": "Booking.com", "domain": "booking.com", "type": "OTA", "isPrimary": false },
+    { "name": "MakeMyTrip", "domain": "makemytrip.com", "type": "OTA", "isPrimary": true },
+    { "name": "Cleartrip", "domain": "cleartrip.com", "type": "OTA", "isPrimary": false },
+    { "name": "Google Flights", "domain": "google.com", "type": "METASEARCH", "isPrimary": false }
+  ]
+}

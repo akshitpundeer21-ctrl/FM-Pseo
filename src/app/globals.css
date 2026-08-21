@@ -1,0 +1,207 @@
+@import "tailwindcss";
+
+/* =============================================================================
+   FaresMatch AI OS - design tokens
+   An operations console: dense, legible, high signal. Neutral surfaces so that
+   status colour carries meaning, and a monospace scale for IDs and metrics.
+   ============================================================================= */
+
+@theme {
+  --color-canvas: #f6f7f9;
+  --color-surface: #ffffff;
+  --color-surface-2: #f9fafb;
+  --color-border: #e4e7ec;
+  --color-border-strong: #d0d5dd;
+
+  --color-ink: #101828;
+  --color-ink-2: #475467;
+  --color-ink-3: #667085;
+  --color-ink-4: #98a2b3;
+
+  --color-brand: #3b5bdb;
+  --color-brand-ink: #1c3faa;
+  --color-brand-soft: #eef2ff;
+
+  --color-ok: #067647;
+  --color-ok-soft: #ecfdf3;
+  --color-warn: #b54708;
+  --color-warn-soft: #fffaeb;
+  --color-danger: #b42318;
+  --color-danger-soft: #fef3f2;
+  --color-info: #026aa2;
+  --color-info-soft: #f0f9ff;
+  --color-mock: #6941c6;
+  --color-mock-soft: #f4f3ff;
+
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", "Cascadia Mono", "Roboto Mono", Menlo, Consolas, monospace;
+}
+
+@media (prefers-color-scheme: dark) {
+  @theme {
+    --color-canvas: #0d1117;
+    --color-surface: #151b23;
+    --color-surface-2: #1b222c;
+    --color-border: #262d38;
+    --color-border-strong: #343c49;
+
+    --color-ink: #e8eaed;
+    --color-ink-2: #b3bac5;
+    --color-ink-3: #8b949e;
+    --color-ink-4: #6b7480;
+
+    --color-brand: #7d92f5;
+    --color-brand-ink: #a5b4fc;
+    --color-brand-soft: #1c2440;
+
+    --color-ok: #4ade80;
+    --color-ok-soft: #10281b;
+    --color-warn: #fbbf24;
+    --color-warn-soft: #2a2110;
+    --color-danger: #f87171;
+    --color-danger-soft: #2c1618;
+    --color-info: #60c8f0;
+    --color-info-soft: #10242e;
+    --color-mock: #c4b5fd;
+    --color-mock-soft: #241c3a;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  padding: 0;
+  margin: 0;
+}
+
+body {
+  background: var(--color-canvas);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+/* Scrollbars: subtle, so dense tables don't shout. */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--color-border-strong);
+  border-radius: 8px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* Utility layers used across the console. */
+@layer components {
+  .fm-card {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: 10px;
+  }
+
+  .fm-table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    font-size: 13px;
+  }
+  .fm-table th {
+    text-align: left;
+    font-weight: 600;
+    color: var(--color-ink-3);
+    font-size: 11px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    padding: 9px 12px;
+    background: var(--color-surface-2);
+    border-bottom: 1px solid var(--color-border);
+    white-space: nowrap;
+  }
+  .fm-table td {
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--color-border);
+    vertical-align: top;
+  }
+  .fm-table tbody tr:last-child td {
+    border-bottom: none;
+  }
+  .fm-table tbody tr:hover td {
+    background: var(--color-surface-2);
+  }
+
+  .fm-input {
+    width: 100%;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border-strong);
+    border-radius: 8px;
+    padding: 8px 11px;
+    font-size: 13px;
+    color: var(--color-ink);
+    font-family: inherit;
+  }
+  .fm-input:focus {
+    outline: 2px solid var(--color-brand);
+    outline-offset: -1px;
+    border-color: transparent;
+  }
+
+  .fm-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    border-radius: 8px;
+    padding: 8px 14px;
+    font-size: 13px;
+    font-weight: 600;
+    border: 1px solid var(--color-border-strong);
+    background: var(--color-surface);
+    color: var(--color-ink);
+    cursor: pointer;
+    transition: background 120ms ease, border-color 120ms ease;
+  }
+  .fm-btn:hover:not(:disabled) {
+    background: var(--color-surface-2);
+  }
+  .fm-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+  .fm-btn-primary {
+    background: var(--color-brand);
+    border-color: var(--color-brand);
+    color: #fff;
+  }
+  .fm-btn-primary:hover:not(:disabled) {
+    background: var(--color-brand-ink);
+  }
+  .fm-btn-danger {
+    background: var(--color-danger-soft);
+    border-color: var(--color-danger);
+    color: var(--color-danger);
+  }
+  .fm-btn-ok {
+    background: var(--color-ok-soft);
+    border-color: var(--color-ok);
+    color: var(--color-ok);
+  }
+
+  .fm-mono {
+    font-family: var(--font-mono);
+    font-size: 12px;
+  }
+}

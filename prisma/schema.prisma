@@ -1,0 +1,1242 @@
+// =============================================================================
+// FaresMatch AI OS - Data model
+// -----------------------------------------------------------------------------
+// Provider is SQLite for zero-config local development. The schema deliberately
+// avoids provider-specific features (enums, native JSON, arrays) so the same
+// schema migrates to PostgreSQL by changing `provider` + DATABASE_URL only.
+//
+// Conventions:
+//  * "<x>Json" columns hold JSON-encoded strings. Always read/write them through
+//    src/core/db/json.ts helpers - never JSON.parse inline.
+//  * Enum-like columns are Strings validated by Zod unions in src/core/types.
+//  * Every tenant-scoped row carries organizationId or a projectId chain to it.
+// =============================================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Identity, tenancy & access control
+// ---------------------------------------------------------------------------
+
+model Organization {
+  id                 String   @id @default(cuid())
+  name               String
+  slug               String   @unique
+  plan               String   @default("mvp")
+  // Budget guardrails enforced by the control plane.
+  monthlyTokenBudget Int      @default(5000000)
+  monthlyCostBudget  Float    @default(250)
+  settingsJson       String   @default("{}")
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  memberships  Membership[]
+  projects     Project[]
+  integrations Integration[]
+  auditLogs    AuditLog[]
+  usage        UsageRecord[]
+  agents       Agent[]
+}
+
+model User {
+  id           String    @id @default(cuid())
+  email        String    @unique
+  name         String
+  passwordHash String
+  passwordSalt String
+  isActive     Boolean   @default(true)
+  lastLoginAt  DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  memberships Membership[]
+  sessions    Session[]
+  approvals   Approval[]   @relation("ApprovalDecider")
+}
+
+/// Role-based access: OWNER | ADMIN | EDITOR | VIEWER
+model Membership {
+  id             String   @id @default(cuid())
+  userId         String
+  organizationId String
+  role           String   @default("VIEWER")
+  createdAt      DateTime @default(now())
+
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, organizationId])
+  @@index([organizationId])
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  userId    String
+  tokenHash String   @unique
+  userAgent String?
+  ipAddress String?
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+// ---------------------------------------------------------------------------
+// Projects, websites, brand knowledge
+// ---------------------------------------------------------------------------
+
+model Project {
+  id                  String   @id @default(cuid())
+  organizationId      String
+  name                String
+  slug                String
+  description         String?
+  status              String   @default("ACTIVE")
+  /// MANUAL | SEMI_AUTOMATIC | AUTOMATIC
+  approvalMode        String   @default("SEMI_AUTOMATIC")
+  /// Confidence below this escalates to human review.
+  confidenceThreshold Float    @default(0.7)
+  settingsJson        String   @default("{}")
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  websites        Website[]
+  brandProfile    BrandProfile?
+  goals           Goal[]
+  tasks           Task[]
+  workflowRuns    WorkflowRun[]
+  agentRuns       AgentRun[]
+  keywords        Keyword[]
+  clusters        KeywordCluster[]
+  topics          Topic[]
+  entities        SeoEntity[]
+  opportunities   Opportunity[]
+  pageFamilies    PageFamily[]
+  templates       Template[]
+  pages           Page[]
+  dataSources     DataSource[]
+  facts           Fact[]
+  competitors     Competitor[]
+  internalLinks   InternalLink[]
+  aiPrompts       AIPrompt[]
+  analytics       AnalyticsSnapshot[]
+  recommendations Recommendation[]
+  approvals       Approval[]
+  integrations    Integration[]
+  logs            LogEntry[]
+  usage           UsageRecord[]
+  flightSearches  FlightSearch[]
+
+  @@unique([organizationId, slug])
+  @@index([organizationId])
+}
+
+model Website {
+  id            String    @id @default(cuid())
+  projectId     String
+  domain        String
+  baseUrl       String
+  name          String
+  cms           String    @default("local_static")
+  /// live | staging | local
+  environment   String    @default("local")
+  sitemapUrl    String?
+  robotsUrl     String?
+  verified      Boolean   @default(false)
+  lastCrawledAt DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  project      Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  crawlResults CrawlResult[]
+  crawlRuns    CrawlRun[]
+  pages        Page[]
+
+  @@index([projectId])
+}
+
+/// WHAT the output should be like (brand voice, rules). Skills define HOW.
+model BrandProfile {
+  id                   String   @id @default(cuid())
+  projectId            String   @unique
+  brandName            String
+  voice                String
+  tone                 String
+  targetAudience       String
+  writingStyle         String
+  readingLevel         String   @default("Grade 8-9")
+  preferredTermsJson   String   @default("[]")
+  avoidWordsJson       String   @default("[]")
+  avoidClaimsJson      String   @default("[]")
+  ctaStyle             String
+  formattingJson       String   @default("{}")
+  seoRulesJson         String   @default("{}")
+  aeoRulesJson         String   @default("{}")
+  geoRulesJson         String   @default("{}")
+  qualityStandardsJson String   @default("{}")
+  linkingRulesJson     String   @default("{}")
+  publishingRulesJson  String   @default("{}")
+  editorialRulesJson   String   @default("{}")
+  version              Int      @default(1)
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+}
+
+// ---------------------------------------------------------------------------
+// Agents, skills, control plane
+// ---------------------------------------------------------------------------
+
+model Agent {
+  id                  String   @id @default(cuid())
+  /// Stable machine key, e.g. "keyword_research". Unique across the catalog.
+  key                 String   @unique
+  name                String
+  description         String
+  role                String
+  /// ORCHESTRATOR | SPECIALIST | GUARDIAN
+  kind                String   @default("SPECIALIST")
+  organizationId      String?
+  isEnabled           Boolean  @default(true)
+  /// Tool keys this agent may request from the Tool Registry.
+  allowedToolsJson    String   @default("[]")
+  /// Capability flags: read_project, write_content, publish, spend_budget...
+  permissionsJson     String   @default("[]")
+  inputSchemaJson     String   @default("{}")
+  outputSchemaJson    String   @default("{}")
+  validationRulesJson String   @default("[]")
+  /// Runs below this confidence are escalated instead of auto-accepted.
+  confidenceThreshold Float    @default(0.7)
+  maxRetries          Int      @default(2)
+  timeoutMs           Int      @default(120000)
+  modelTier           String   @default("balanced")
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  skills       AgentSkill[]
+  tasks        Task[]
+  runs         AgentRun[]
+
+  @@index([organizationId])
+}
+
+model Skill {
+  id                 String   @id @default(cuid())
+  key                String   @unique
+  name               String
+  category           String
+  description        String
+  /// The reusable instruction body injected into agent prompts.
+  instructions       String
+  methodologyJson    String   @default("[]")
+  constraintsJson    String   @default("[]")
+  outputContractJson String   @default("{}")
+  version            Int      @default(1)
+  isActive           Boolean  @default(true)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  agents AgentSkill[]
+}
+
+model AgentSkill {
+  id       String @id @default(cuid())
+  agentId  String
+  skillId  String
+  priority Int    @default(100)
+
+  agent Agent @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  skill Skill @relation(fields: [skillId], references: [id], onDelete: Cascade)
+
+  @@unique([agentId, skillId])
+  @@index([skillId])
+}
+
+// ---------------------------------------------------------------------------
+// Goals, tasks, workflows
+// ---------------------------------------------------------------------------
+
+model Goal {
+  id        String   @id @default(cuid())
+  projectId String
+  objective String
+  context   String?
+  status    String   @default("PENDING")
+  planJson  String   @default("{}")
+  createdBy String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  project      Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  tasks        Task[]
+  workflowRuns WorkflowRun[]
+
+  @@index([projectId])
+}
+
+model Task {
+  id               String    @id @default(cuid())
+  projectId        String
+  goalId           String?
+  parentTaskId     String?
+  workflowRunId    String?
+  agentId          String?
+  title            String
+  goal             String
+  /// PENDING QUEUED RUNNING WAITING REVIEW APPROVED REJECTED COMPLETED FAILED CANCELLED
+  status           String    @default("PENDING")
+  priority         Int       @default(50)
+  inputJson        String    @default("{}")
+  outputJson       String?
+  dependenciesJson String    @default("[]")
+  requiresApproval Boolean   @default(false)
+  /// PENDING | PASSED | FAILED | SKIPPED
+  validationStatus String    @default("PENDING")
+  error            String?
+  attempts         Int       @default(0)
+  confidence       Float?
+  startedAt        DateTime?
+  completedAt      DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  project     Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  goalRef     Goal?        @relation(fields: [goalId], references: [id], onDelete: SetNull)
+  parentTask  Task?        @relation("TaskTree", fields: [parentTaskId], references: [id], onDelete: SetNull)
+  subtasks    Task[]       @relation("TaskTree")
+  agent       Agent?       @relation(fields: [agentId], references: [id], onDelete: SetNull)
+  workflowRun WorkflowRun? @relation(fields: [workflowRunId], references: [id], onDelete: SetNull)
+  runs        AgentRun[]
+  approvals   Approval[]
+  logs        LogEntry[]
+
+  @@index([projectId, status])
+  @@index([workflowRunId])
+  @@index([goalId])
+}
+
+model Workflow {
+  id          String   @id @default(cuid())
+  key         String   @unique
+  name        String
+  description String
+  version     Int      @default(1)
+  /// Ordered step definitions: [{key,name,agentKey,requiresApproval,...}]
+  stepsJson   String   @default("[]")
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  runs WorkflowRun[]
+}
+
+model WorkflowRun {
+  id          String    @id @default(cuid())
+  workflowId  String
+  projectId   String
+  goalId      String?
+  status      String    @default("PENDING")
+  currentStep String?
+  inputJson   String    @default("{}")
+  contextJson String    @default("{}")
+  outputJson  String?
+  error       String?
+  startedAt   DateTime?
+  completedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  workflow Workflow          @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  project  Project           @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  goalRef  Goal?             @relation(fields: [goalId], references: [id], onDelete: SetNull)
+  steps    WorkflowStepRun[]
+  tasks    Task[]
+
+  @@index([projectId, status])
+}
+
+model WorkflowStepRun {
+  id               String    @id @default(cuid())
+  workflowRunId    String
+  stepKey          String
+  stepName         String
+  agentKey         String?
+  status           String    @default("PENDING")
+  sequence         Int       @default(0)
+  inputJson        String    @default("{}")
+  outputJson       String?
+  error            String?
+  requiresApproval Boolean   @default(false)
+  startedAt        DateTime?
+  completedAt      DateTime?
+  durationMs       Int?
+
+  workflowRun WorkflowRun @relation(fields: [workflowRunId], references: [id], onDelete: Cascade)
+
+  @@index([workflowRunId, sequence])
+}
+
+model AgentRun {
+  id             String    @id @default(cuid())
+  agentId        String
+  projectId      String
+  taskId         String?
+  status         String    @default("RUNNING")
+  inputSummary   String    @default("")
+  outputSummary  String    @default("")
+  inputJson      String    @default("{}")
+  outputJson     String?
+  toolsUsedJson  String    @default("[]")
+  skillsUsedJson String    @default("[]")
+  tokensIn       Int       @default(0)
+  tokensOut      Int       @default(0)
+  costUsd        Float     @default(0)
+  latencyMs      Int       @default(0)
+  confidence     Float?
+  error          String?
+  nextAction     String?
+  isMock         Boolean   @default(false)
+  startedAt      DateTime  @default(now())
+  endedAt        DateTime?
+
+  agent     Agent            @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  project   Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  task      Task?            @relation(fields: [taskId], references: [id], onDelete: SetNull)
+  toolCalls ToolInvocation[]
+  logs      LogEntry[]
+
+  @@index([projectId, startedAt])
+  @@index([agentId])
+}
+
+model ToolInvocation {
+  id              String   @id @default(cuid())
+  agentRunId      String?
+  toolKey         String
+  integrationId   String?
+  status          String   @default("SUCCESS")
+  requestJson     String   @default("{}")
+  responseSummary String   @default("")
+  latencyMs       Int      @default(0)
+  costUsd         Float    @default(0)
+  isMock          Boolean  @default(false)
+  error           String?
+  createdAt       DateTime @default(now())
+
+  agentRun    AgentRun?    @relation(fields: [agentRunId], references: [id], onDelete: Cascade)
+  integration Integration? @relation(fields: [integrationId], references: [id], onDelete: SetNull)
+
+  @@index([toolKey, createdAt])
+}
+
+// ---------------------------------------------------------------------------
+// SEO intelligence
+// ---------------------------------------------------------------------------
+
+model Keyword {
+  id                  String   @id @default(cuid())
+  projectId           String
+  clusterId           String?
+  keyword             String
+  /// INFORMATIONAL | NAVIGATIONAL | COMMERCIAL | TRANSACTIONAL | QUESTION
+  intent              String   @default("INFORMATIONAL")
+  /// ROUTE | AIRPORT | AIRLINE | DESTINATION | POLICY | GENERIC
+  entityType          String?
+  origin              String?
+  destination         String?
+  pageType            String?
+  volume              Int      @default(0)
+  difficulty          Float    @default(0)
+  cpc                 Float    @default(0)
+  businessValue       Float    @default(0)
+  opportunityScore    Float    @default(0)
+  recommendedAction   String   @default("REVIEW")
+  cannibalizationRisk Float    @default(0)
+  source              String   @default("mock")
+  isMock              Boolean  @default(true)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  project Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  cluster KeywordCluster? @relation(fields: [clusterId], references: [id], onDelete: SetNull)
+
+  @@unique([projectId, keyword])
+  @@index([projectId, opportunityScore])
+  @@index([clusterId])
+}
+
+model KeywordCluster {
+  id                   String   @id @default(cuid())
+  projectId            String
+  name                 String
+  primaryKeyword       String
+  intent               String   @default("INFORMATIONAL")
+  pageType             String?
+  totalVolume          Int      @default(0)
+  avgDifficulty        Float    @default(0)
+  opportunityScore     Float    @default(0)
+  cannibalizationNotes String?
+  createdAt            DateTime @default(now())
+
+  project  Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  keywords Keyword[]
+  pages    Page[]
+
+  @@index([projectId])
+}
+
+model Topic {
+  id        String   @id @default(cuid())
+  projectId String
+  name      String
+  summary   String?
+  parentId  String?
+  createdAt DateTime @default(now())
+
+  project  Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  parent   Topic?  @relation("TopicTree", fields: [parentId], references: [id], onDelete: SetNull)
+  children Topic[] @relation("TopicTree")
+
+  @@index([projectId])
+}
+
+/// Named entities used for internal linking + GEO entity clarity.
+model SeoEntity {
+  id             String   @id @default(cuid())
+  projectId      String
+  /// AIRPORT | AIRLINE | CITY | COUNTRY | ROUTE | POLICY | BRAND
+  type           String
+  code           String
+  name           String
+  attributesJson String   @default("{}")
+  createdAt      DateTime @default(now())
+
+  project   Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  fromLinks InternalLink[] @relation("EntityFrom")
+
+  @@unique([projectId, type, code])
+  @@index([projectId, type])
+}
+
+/// A scored programmatic page opportunity, produced before any page is created.
+model Opportunity {
+  id                    String   @id @default(cuid())
+  projectId             String
+  pageFamilyId          String?
+  /// ROUTE | AIRPORT | AIRLINE | DESTINATION | POLICY
+  type                  String
+  candidateUrl          String
+  title                 String
+  variablesJson         String   @default("{}")
+  primaryKeyword        String?
+  searchDemand          Float    @default(0)
+  intentMatch           Float    @default(0)
+  businessValue         Float    @default(0)
+  dataAvailability      Float    @default(0)
+  uniqueness            Float    @default(0)
+  userUtility           Float    @default(0)
+  competition           Float    @default(0)
+  trafficPotential      Float    @default(0)
+  conversionPotential   Float    @default(0)
+  contentQualityCeiling Float    @default(0)
+  indexationRisk        Float    @default(0)
+  duplicationRisk       Float    @default(0)
+  totalScore            Float    @default(0)
+  /// BUILD | REVIEW | REJECT
+  decision              String   @default("REVIEW")
+  reasonsJson           String   @default("[]")
+  status                String   @default("NEW")
+  isMock                Boolean  @default(true)
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  project    Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  pageFamily PageFamily? @relation(fields: [pageFamilyId], references: [id], onDelete: SetNull)
+  pages      Page[]
+
+  @@unique([projectId, candidateUrl])
+  @@index([projectId, totalScore])
+}
+
+// ---------------------------------------------------------------------------
+// Programmatic page system: families, templates, components, pages
+// ---------------------------------------------------------------------------
+
+model PageFamily {
+  id                    String   @id @default(cuid())
+  projectId             String
+  key                   String
+  name                  String
+  description           String?
+  /// e.g. /flights/{origin}/{destination}
+  urlPattern            String
+  entityTypesJson       String   @default("[]")
+  /// Configurable composition: what share is template-driven vs dynamic vs AI.
+  compositionJson       String   @default("{}")
+  qualityThresholdsJson String   @default("{}")
+  minOpportunityScore   Float    @default(55)
+  status                String   @default("ACTIVE")
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  project       Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  templates     Template[]
+  pages         Page[]
+  opportunities Opportunity[]
+
+  @@unique([projectId, key])
+  @@index([projectId])
+}
+
+model Template {
+  id               String   @id @default(cuid())
+  projectId        String
+  pageFamilyId     String?
+  key              String
+  name             String
+  description      String?
+  version          Int      @default(1)
+  status           String   @default("ACTIVE")
+  /// Rules for title/meta/schema generation.
+  seoConfigJson    String   @default("{}")
+  /// If true, component upgrades propagate to pages generated later.
+  propagateUpdates Boolean  @default(true)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  project    Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  pageFamily PageFamily?     @relation(fields: [pageFamilyId], references: [id], onDelete: SetNull)
+  blocks     TemplateBlock[]
+  pages      Page[]
+
+  @@unique([projectId, key, version])
+  @@index([projectId])
+}
+
+/// Reusable, independently configurable content component definition.
+model ComponentDef {
+  id                  String   @id @default(cuid())
+  key                 String   @unique
+  name                String
+  category            String
+  description         String
+  version             Int      @default(1)
+  /// JSON-schema-ish description of the props the component accepts.
+  propsSchemaJson     String   @default("{}")
+  /// Default static copy / structure.
+  defaultsJson        String   @default("{}")
+  /// Data bindings resolved by the Dynamic Data Engine.
+  dataBindingsJson    String   @default("[]")
+  /// Named AI generation slots inside the component.
+  aiSlotsJson         String   @default("[]")
+  /// Rules that must hold for the component to render.
+  validationJson      String   @default("[]")
+  supportsConditional Boolean  @default(true)
+  isActive            Boolean  @default(true)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  blocks TemplateBlock[]
+}
+
+model TemplateBlock {
+  id            String  @id @default(cuid())
+  templateId    String
+  componentId   String
+  sequence      Int     @default(0)
+  /// Per-template overrides of component props/bindings.
+  configJson    String  @default("{}")
+  /// Expression evaluated against the page data context, e.g. "route.stops > 0"
+  condition     String?
+  isRequired    Boolean @default(false)
+  /// TEMPLATE | DYNAMIC | AI | HYBRID - drives composition accounting.
+  contentSource String  @default("HYBRID")
+
+  template  Template     @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  component ComponentDef @relation(fields: [componentId], references: [id], onDelete: Restrict)
+
+  @@index([templateId, sequence])
+}
+
+model Page {
+  id              String    @id @default(cuid())
+  projectId       String
+  websiteId       String?
+  pageFamilyId    String?
+  templateId      String?
+  opportunityId   String?
+  clusterId       String?
+  url             String
+  title           String
+  metaDescription String?
+  /// DRAFT | GENERATED | VALIDATED | REVIEW | APPROVED | REJECTED | PUBLISHED | UNPUBLISHED
+  status          String    @default("DRAFT")
+  variablesJson   String    @default("{}")
+  qualityScore    Float     @default(0)
+  qualityStatus   String    @default("PENDING")
+  currentVersion  Int       @default(0)
+  publishedAt     DateTime?
+  unpublishedAt   DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  project     Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  website     Website?        @relation(fields: [websiteId], references: [id], onDelete: SetNull)
+  pageFamily  PageFamily?     @relation(fields: [pageFamilyId], references: [id], onDelete: SetNull)
+  template    Template?       @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  opportunity Opportunity?    @relation(fields: [opportunityId], references: [id], onDelete: SetNull)
+  cluster     KeywordCluster? @relation(fields: [clusterId], references: [id], onDelete: SetNull)
+  versions    PageVersion[]
+  linksFrom   InternalLink[]  @relation("LinkFrom")
+  linksTo     InternalLink[]  @relation("LinkTo")
+  schemas     SchemaMarkup[]
+  approvals   Approval[]
+  searches    FlightSearch[]
+
+  @@unique([projectId, url])
+  @@index([projectId, status])
+}
+
+model PageVersion {
+  id              String   @id @default(cuid())
+  pageId          String
+  version         Int
+  status          String   @default("DRAFT")
+  title           String
+  metaDescription String
+  /// Rendered block tree with per-block provenance.
+  blocksJson      String   @default("[]")
+  html            String   @default("")
+  markdown        String   @default("")
+  seoJson         String   @default("{}")
+  aeoJson         String   @default("{}")
+  geoJson         String   @default("{}")
+  schemaJson      String   @default("[]")
+  qualityJson     String   @default("{}")
+  compositionJson String   @default("{}")
+  factsJson       String   @default("[]")
+  wordCount       Int      @default(0)
+  createdBy       String   @default("system")
+  createdAt       DateTime @default(now())
+
+  page           Page            @relation(fields: [pageId], references: [id], onDelete: Cascade)
+  contentItems   ContentItem[]
+  qualityChecks  QualityCheck[]
+  publishRecords PublishRecord[]
+
+  @@unique([pageId, version])
+}
+
+/// One resolved block of content, with provenance (template / data / AI / human).
+model ContentItem {
+  id            String  @id @default(cuid())
+  pageVersionId String
+  blockKey      String
+  componentKey  String
+  sequence      Int     @default(0)
+  /// TEMPLATE | DYNAMIC | AI | HUMAN
+  source        String  @default("TEMPLATE")
+  text          String  @default("")
+  dataJson      String  @default("{}")
+  model         String?
+  tokens        Int     @default(0)
+  confidence    Float   @default(1)
+  isMock        Boolean @default(false)
+
+  pageVersion PageVersion @relation(fields: [pageVersionId], references: [id], onDelete: Cascade)
+
+  @@index([pageVersionId, sequence])
+}
+
+model QualityCheck {
+  id            String   @id @default(cuid())
+  pageVersionId String
+  gate          String
+  passed        Boolean  @default(false)
+  severity      String   @default("INFO")
+  score         Float    @default(0)
+  message       String   @default("")
+  detailsJson   String   @default("{}")
+  createdAt     DateTime @default(now())
+
+  pageVersion PageVersion @relation(fields: [pageVersionId], references: [id], onDelete: Cascade)
+
+  @@index([pageVersionId])
+}
+
+model SchemaMarkup {
+  id               String   @id @default(cuid())
+  pageId           String
+  type             String
+  jsonld           String
+  validationStatus String   @default("PENDING")
+  issuesJson       String   @default("[]")
+  createdAt        DateTime @default(now())
+
+  page Page @relation(fields: [pageId], references: [id], onDelete: Cascade)
+
+  @@index([pageId])
+}
+
+model InternalLink {
+  id           String   @id @default(cuid())
+  projectId    String
+  fromPageId   String?
+  toPageId     String?
+  fromEntityId String?
+  targetUrl    String
+  anchorText   String
+  relevance    Float    @default(0)
+  reason       String   @default("")
+  status       String   @default("PROPOSED")
+  createdAt    DateTime @default(now())
+
+  project    Project    @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  fromPage   Page?      @relation("LinkFrom", fields: [fromPageId], references: [id], onDelete: Cascade)
+  toPage     Page?      @relation("LinkTo", fields: [toPageId], references: [id], onDelete: Cascade)
+  fromEntity SeoEntity? @relation("EntityFrom", fields: [fromEntityId], references: [id], onDelete: SetNull)
+
+  @@index([projectId])
+  @@index([fromPageId])
+}
+
+// ---------------------------------------------------------------------------
+// Dynamic data, facts & verification
+// ---------------------------------------------------------------------------
+
+model DataSource {
+  id         String    @id @default(cuid())
+  projectId  String
+  key        String
+  name       String
+  /// STATIC_DATASET | API | USER_UPLOAD | CRAWL
+  type       String    @default("STATIC_DATASET")
+  adapter    String
+  configJson String    @default("{}")
+  status     String    @default("ACTIVE")
+  isMock     Boolean   @default(true)
+  trustLevel Float     @default(0.6)
+  lastSyncAt DateTime?
+  createdAt  DateTime  @default(now())
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  facts   Fact[]
+
+  @@unique([projectId, key])
+}
+
+/// A single atomic, attributable data point. Agents may never invent these.
+model Fact {
+  id                 String   @id @default(cuid())
+  projectId          String
+  dataSourceId       String?
+  subject            String
+  predicate          String
+  value              String
+  unit               String?
+  scopeJson          String   @default("{}")
+  sourceName         String   @default("")
+  sourceUrl          String?
+  retrievedAt        DateTime @default(now())
+  confidence         Float    @default(0.5)
+  /// UNVERIFIED | VERIFIED | DISPUTED | REJECTED | STALE
+  verificationStatus String   @default("UNVERIFIED")
+  isTimeSensitive    Boolean  @default(false)
+  isMock             Boolean  @default(true)
+  createdAt          DateTime @default(now())
+
+  project       Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  dataSource    DataSource?    @relation(fields: [dataSourceId], references: [id], onDelete: SetNull)
+  verifications Verification[]
+
+  @@index([projectId, subject])
+}
+
+model Verification {
+  id           String   @id @default(cuid())
+  factId       String
+  method       String
+  verdict      String
+  evidenceJson String   @default("{}")
+  confidence   Float    @default(0)
+  agentRunId   String?
+  checkedAt    DateTime @default(now())
+
+  fact Fact @relation(fields: [factId], references: [id], onDelete: Cascade)
+
+  @@index([factId])
+}
+
+// ---------------------------------------------------------------------------
+// Technical SEO / crawling
+// ---------------------------------------------------------------------------
+
+model CrawlRun {
+  id           String    @id @default(cuid())
+  websiteId    String
+  status       String    @default("RUNNING")
+  pagesCrawled Int       @default(0)
+  issuesFound  Int       @default(0)
+  adapter      String    @default("internal_fetch")
+  error        String?
+  startedAt    DateTime  @default(now())
+  completedAt  DateTime?
+
+  website Website       @relation(fields: [websiteId], references: [id], onDelete: Cascade)
+  results CrawlResult[]
+
+  @@index([websiteId])
+}
+
+model CrawlResult {
+  id                String   @id @default(cuid())
+  websiteId         String
+  crawlRunId        String?
+  url               String
+  httpStatus        Int      @default(0)
+  contentType       String?
+  title             String?
+  metaDescription   String?
+  h1                String?
+  canonical         String?
+  robots            String?
+  indexable         Boolean  @default(true)
+  wordCount         Int      @default(0)
+  internalLinkCount Int      @default(0)
+  outboundLinkCount Int      @default(0)
+  schemaTypesJson   String   @default("[]")
+  issuesJson        String   @default("[]")
+  responseMs        Int      @default(0)
+  isOrphan          Boolean  @default(false)
+  fetchedAt         DateTime @default(now())
+
+  website  Website   @relation(fields: [websiteId], references: [id], onDelete: Cascade)
+  crawlRun CrawlRun? @relation(fields: [crawlRunId], references: [id], onDelete: Cascade)
+
+  @@index([websiteId, url])
+}
+
+// ---------------------------------------------------------------------------
+// Publishing
+// ---------------------------------------------------------------------------
+
+model PublishRecord {
+  id            String    @id @default(cuid())
+  pageVersionId String
+  adapter       String
+  /// PUBLISHED | FAILED | ROLLED_BACK | UNPUBLISHED
+  status        String    @default("PUBLISHED")
+  remoteId      String?
+  remoteUrl     String?
+  requestJson   String    @default("{}")
+  responseJson  String    @default("{}")
+  error         String?
+  publishedAt   DateTime  @default(now())
+  rolledBackAt  DateTime?
+  actor         String    @default("publishing_agent")
+
+  pageVersion PageVersion @relation(fields: [pageVersionId], references: [id], onDelete: Cascade)
+
+  @@index([pageVersionId])
+}
+
+// ---------------------------------------------------------------------------
+// Approvals & governance
+// ---------------------------------------------------------------------------
+
+model Approval {
+  id          String    @id @default(cuid())
+  projectId   String
+  /// PAGE | PAGE_VERSION | TASK | WORKFLOW_RUN | PUBLISH | OPPORTUNITY
+  entityType  String
+  entityId    String
+  pageId      String?
+  taskId      String?
+  title       String
+  summary     String    @default("")
+  riskLevel   String    @default("MEDIUM")
+  status      String    @default("PENDING")
+  requestedBy String    @default("system")
+  decidedById String?
+  decidedAt   DateTime?
+  notes       String?
+  payloadJson String    @default("{}")
+  createdAt   DateTime  @default(now())
+
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  page      Page?   @relation(fields: [pageId], references: [id], onDelete: Cascade)
+  task      Task?   @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  decidedBy User?   @relation("ApprovalDecider", fields: [decidedById], references: [id], onDelete: SetNull)
+
+  @@index([projectId, status])
+}
+
+model AuditLog {
+  id             String   @id @default(cuid())
+  organizationId String
+  projectId      String?
+  /// USER | AGENT | SYSTEM
+  actorType      String   @default("USER")
+  actorId        String?
+  action         String
+  entityType     String?
+  entityId       String?
+  metaJson       String   @default("{}")
+  ipAddress      String?
+  createdAt      DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, createdAt])
+}
+
+model LogEntry {
+  id          String   @id @default(cuid())
+  level       String   @default("INFO")
+  scope       String   @default("app")
+  message     String
+  contextJson String   @default("{}")
+  projectId   String?
+  agentRunId  String?
+  taskId      String?
+  createdAt   DateTime @default(now())
+
+  project  Project?  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  agentRun AgentRun? @relation(fields: [agentRunId], references: [id], onDelete: Cascade)
+  task     Task?     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@index([createdAt])
+  @@index([projectId, level])
+}
+
+// ---------------------------------------------------------------------------
+// Integrations & credentials
+// ---------------------------------------------------------------------------
+
+model Integration {
+  id             String    @id @default(cuid())
+  organizationId String
+  projectId      String?
+  provider       String
+  /// LLM | KEYWORD_DATA | SEARCH_CONSOLE | ANALYTICS | CMS | TRAVEL_DATA | CRAWLER | AI_VISIBILITY
+  category       String
+  name           String
+  /// NOT_CONFIGURED | CONFIGURED | ERROR | DISABLED
+  status         String    @default("NOT_CONFIGURED")
+  isMock         Boolean   @default(true)
+  configJson     String    @default("{}")
+  lastCheckedAt  DateTime?
+  lastError      String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  organization Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  project      Project?         @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  credentials  Credential[]
+  toolCalls    ToolInvocation[]
+
+  @@unique([organizationId, provider, projectId])
+  @@index([organizationId])
+}
+
+/// Encrypted-at-rest secret. Ciphertext never leaves the server layer.
+model Credential {
+  id            String    @id @default(cuid())
+  integrationId String
+  key           String
+  ciphertext    String
+  iv            String
+  authTag       String
+  /// Safe display metadata only (e.g. "sk-...9f2c", length, created).
+  hint          String    @default("")
+  createdBy     String?
+  rotatedAt     DateTime?
+  createdAt     DateTime  @default(now())
+
+  integration Integration @relation(fields: [integrationId], references: [id], onDelete: Cascade)
+
+  @@unique([integrationId, key])
+}
+
+// ---------------------------------------------------------------------------
+// Competitors, analytics, AI visibility, recommendations
+// ---------------------------------------------------------------------------
+
+model Competitor {
+  id        String   @id @default(cuid())
+  projectId String
+  name      String
+  domain    String
+  notes     String?
+  isPrimary Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, domain])
+}
+
+model AnalyticsSnapshot {
+  id             String   @id @default(cuid())
+  projectId      String
+  /// gsc | ga4 | mock
+  source         String
+  date           DateTime
+  /// query | page | country | device
+  dimension      String   @default("query")
+  dimensionValue String
+  clicks         Int      @default(0)
+  impressions    Int      @default(0)
+  ctr            Float    @default(0)
+  position       Float    @default(0)
+  sessions       Int      @default(0)
+  conversions    Int      @default(0)
+  isMock         Boolean  @default(true)
+  createdAt      DateTime @default(now())
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId, date])
+  @@index([projectId, dimension, dimensionValue])
+}
+
+model AIPrompt {
+  id           String   @id @default(cuid())
+  projectId    String
+  prompt       String
+  category     String   @default("GENERAL")
+  intent       String   @default("INFORMATIONAL")
+  entitiesJson String   @default("[]")
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  runs    AIRun[]
+
+  @@index([projectId])
+}
+
+model AIRun {
+  id              String   @id @default(cuid())
+  promptId        String
+  platform        String
+  model           String
+  responseText    String   @default("")
+  tokensIn        Int      @default(0)
+  tokensOut       Int      @default(0)
+  costUsd         Float    @default(0)
+  latencyMs       Int      @default(0)
+  brandMentioned  Boolean  @default(false)
+  domainMentioned Boolean  @default(false)
+  brandCited      Boolean  @default(false)
+  error           String?
+  isMock          Boolean  @default(true)
+  runAt           DateTime @default(now())
+
+  prompt    AIPrompt     @relation(fields: [promptId], references: [id], onDelete: Cascade)
+  mentions  AIMention[]
+  citations AICitation[]
+
+  @@index([promptId, runAt])
+}
+
+model AIMention {
+  id         String @id @default(cuid())
+  aiRunId    String
+  entityName String
+  /// BRAND | COMPETITOR | DOMAIN | OTHER
+  entityType String @default("BRAND")
+  context    String @default("")
+  position   Int    @default(0)
+  sentiment  String @default("NEUTRAL")
+
+  aiRun AIRun @relation(fields: [aiRunId], references: [id], onDelete: Cascade)
+
+  @@index([aiRunId])
+}
+
+model AICitation {
+  id       String  @id @default(cuid())
+  aiRunId  String
+  url      String
+  domain   String
+  isOwned  Boolean @default(false)
+  position Int     @default(0)
+
+  aiRun AIRun @relation(fields: [aiRunId], references: [id], onDelete: Cascade)
+
+  @@index([aiRunId])
+}
+
+model Recommendation {
+  id           String   @id @default(cuid())
+  projectId    String
+  type         String
+  title        String
+  detail       String
+  priority     Int      @default(50)
+  impact       String   @default("MEDIUM")
+  effort       String   @default("MEDIUM")
+  status       String   @default("OPEN")
+  evidenceJson String   @default("{}")
+  sourceAgent  String   @default("master_orchestrator")
+  createdAt    DateTime @default(now())
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId, status])
+}
+
+model UsageRecord {
+  id             String   @id @default(cuid())
+  organizationId String
+  projectId      String?
+  /// YYYY-MM
+  period         String
+  category       String   @default("llm")
+  tokensIn       Int      @default(0)
+  tokensOut      Int      @default(0)
+  costUsd        Float    @default(0)
+  calls          Int      @default(0)
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  project      Project?     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, projectId, period, category])
+}
+
+/// Flight search events - links the search experience to the SEO landing pages.
+model FlightSearch {
+  id            String   @id @default(cuid())
+  projectId     String
+  origin        String
+  destination   String
+  departDate    String?
+  returnDate    String?
+  passengers    Int      @default(1)
+  cabin         String   @default("ECONOMY")
+  resultsCount  Int      @default(0)
+  matchedPageId String?
+  provider      String   @default("mock")
+  isMock        Boolean  @default(true)
+  createdAt     DateTime @default(now())
+
+  project     Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  matchedPage Page?   @relation(fields: [matchedPageId], references: [id], onDelete: SetNull)
+
+  @@index([projectId, createdAt])
+}

@@ -1,0 +1,36 @@
+# dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# next
+.next/
+out/
+build/
+next-env.d.ts
+
+# env / secrets - NEVER commit
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+
+# database
+prisma/*.db
+prisma/*.db-journal
+prisma/dev.db*
+prisma/test.db*
+
+# publishing output of the local-static adapter
+published/*
+!published/.gitkeep
+
+# logs / os
+*.log
+npm-debug.log*
+.DS_Store
+Thumbs.db
+coverage/
+.vitest/
+tsconfig.tsbuildinfo

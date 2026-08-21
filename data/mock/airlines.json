@@ -1,0 +1,31 @@
+{
+  "$meta": {
+    "dataset": "airlines",
+    "isMock": true,
+    "sourceName": "Bundled static reference dataset (approximate)",
+    "note": "Carrier identity/alliance/hub reference only. Contains NO baggage allowances, fees or fare rules - those are time-sensitive and must come from the operating carrier via a connected data source before publication.",
+    "retrievedAt": "2026-01-01T00:00:00.000Z"
+  },
+  "airlines": [
+    { "iata": "AC", "icao": "ACA", "name": "Air Canada", "country": "Canada", "alliance": "Star Alliance", "hub": "Toronto Pearson (YYZ)", "type": "FULL_SERVICE" },
+    { "iata": "AI", "icao": "AIC", "name": "Air India", "country": "India", "alliance": "Star Alliance", "hub": "Delhi (DEL)", "type": "FULL_SERVICE" },
+    { "iata": "EK", "icao": "UAE", "name": "Emirates", "country": "United Arab Emirates", "alliance": "None", "hub": "Dubai (DXB)", "type": "FULL_SERVICE" },
+    { "iata": "EY", "icao": "ETD", "name": "Etihad Airways", "country": "United Arab Emirates", "alliance": "None", "hub": "Abu Dhabi (AUH)", "type": "FULL_SERVICE" },
+    { "iata": "QR", "icao": "QTR", "name": "Qatar Airways", "country": "Qatar", "alliance": "Oneworld", "hub": "Doha (DOH)", "type": "FULL_SERVICE" },
+    { "iata": "BA", "icao": "BAW", "name": "British Airways", "country": "United Kingdom", "alliance": "Oneworld", "hub": "London Heathrow (LHR)", "type": "FULL_SERVICE" },
+    { "iata": "LH", "icao": "DLH", "name": "Lufthansa", "country": "Germany", "alliance": "Star Alliance", "hub": "Frankfurt (FRA)", "type": "FULL_SERVICE" },
+    { "iata": "TK", "icao": "THY", "name": "Turkish Airlines", "country": "Turkey", "alliance": "Star Alliance", "hub": "Istanbul (IST)", "type": "FULL_SERVICE" },
+    { "iata": "SQ", "icao": "SIA", "name": "Singapore Airlines", "country": "Singapore", "alliance": "Star Alliance", "hub": "Singapore Changi (SIN)", "type": "FULL_SERVICE" },
+    { "iata": "UA", "icao": "UAL", "name": "United Airlines", "country": "United States", "alliance": "Star Alliance", "hub": "Chicago O'Hare (ORD)", "type": "FULL_SERVICE" },
+    { "iata": "AA", "icao": "AAL", "name": "American Airlines", "country": "United States", "alliance": "Oneworld", "hub": "Dallas/Fort Worth (DFW)", "type": "FULL_SERVICE" },
+    { "iata": "DL", "icao": "DAL", "name": "Delta Air Lines", "country": "United States", "alliance": "SkyTeam", "hub": "Atlanta (ATL)", "type": "FULL_SERVICE" },
+    { "iata": "6E", "icao": "IGO", "name": "IndiGo", "country": "India", "alliance": "None", "hub": "Delhi (DEL)", "type": "LOW_COST" },
+    { "iata": "UK", "icao": "VTI", "name": "Vistara", "country": "India", "alliance": "None", "hub": "Delhi (DEL)", "type": "FULL_SERVICE" },
+    { "iata": "WS", "icao": "WJA", "name": "WestJet", "country": "Canada", "alliance": "None", "hub": "Calgary (YYC)", "type": "HYBRID" },
+    { "iata": "QF", "icao": "QFA", "name": "Qantas", "country": "Australia", "alliance": "Oneworld", "hub": "Sydney (SYD)", "type": "FULL_SERVICE" },
+    { "iata": "VS", "icao": "VIR", "name": "Virgin Atlantic", "country": "United Kingdom", "alliance": "SkyTeam", "hub": "London Heathrow (LHR)", "type": "FULL_SERVICE" },
+    { "iata": "KL", "icao": "KLM", "name": "KLM Royal Dutch Airlines", "country": "Netherlands", "alliance": "SkyTeam", "hub": "Amsterdam (AMS)", "type": "FULL_SERVICE" },
+    { "iata": "AF", "icao": "AFR", "name": "Air France", "country": "France", "alliance": "SkyTeam", "hub": "Paris CDG (CDG)", "type": "FULL_SERVICE" },
+    { "iata": "EK2", "icao": "FDB", "name": "flydubai", "country": "United Arab Emirates", "alliance": "None", "hub": "Dubai (DXB)", "type": "LOW_COST" }
+  ]
+}

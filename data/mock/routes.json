@@ -1,0 +1,989 @@
+{
+  "$meta": {
+    "dataset": "routes",
+    "isMock": true,
+    "sourceName": "Bundled static reference dataset (computed + approximate)",
+    "note": "distanceKm is computed great-circle from airport coordinates. typicalDurationMinutes is ESTIMATED, not scheduled: nonstop = (distance x 1.08) / 850km/h + 35min; one-stop = nonstop(distance x 1.18) + 150min connection. Contains NO fares, no live schedules and no seat availability.",
+    "generatedBy": "scripts/build-routes-dataset.ts",
+    "retrievedAt": "2026-01-01T00:00:00.000Z"
+  },
+  "routes": [
+    {
+      "id": "DEL-YYZ",
+      "origin": "DEL",
+      "destination": "YYZ",
+      "originCity": "Delhi",
+      "destinationCity": "Toronto",
+      "originCountry": "India",
+      "destinationCountry": "Canada",
+      "distanceKm": 11640,
+      "typicalStops": 0,
+      "typicalDurationMinutes": 922,
+      "nonstopAvailable": true,
+      "airlines": [
+        "AC",
+        "AI"
+      ],
+      "demandIndex": 88,
+      "peakMonths": [
+        "Jun",
+        "Jul",
+        "Dec"
+      ],
+      "cabinClasses": [
+        "ECONOMY",
+        "PREMIUM_ECONOMY",
+        "BUSINESS"
+      ]
+    },
+    {
+      "id": "DEL-YVR",
+      "origin": "DEL",
+      "destination": "YVR",
+      "originCity": "Delhi",
+      "destinationCity": "Vancouver",
+      "originCountry": "India",
+      "destinationCountry": "Canada",
+      "distanceKm": 11138,
+      "typicalStops": 0,
+      "typicalDurationMinutes": 884,
+      "nonstopAvailable": true,
+      "airlines": [
+        "AC",
+        "AI"
+      ],
+      "demandIndex": 71,
+      "peakMonths": [
+        "Jun",
+        "Jul",
+        "Dec"
+      ],
+      "cabinClasses": [
+        "ECONOMY",
+        "PREMIUM_ECONOMY",
+        "BUSINESS"
+      ]
+    },
+    {
+      "id": "DEL-YUL",
+      "origin": "DEL",
+      "destination": "YUL",
+      "originCity": "Delhi",
+      "destinationCity": "Montreal",
+      "originCountry": "India",
+      "destinationCountry": "Canada",
+      "distanceKm": 11272,
+      "typicalStops": 1,
+      "typicalDurationMinutes": 1199,
+      "nonstopAvailable": false,
+      "airlines": [
+        "AC",
+        "LH",
+        "BA",
+        "EK"
+      ],
+      "demandIndex": 54,
+      "peakMonths": [
+        "Jun",
+        "Dec"
+      ],
+      "cabinClasses": [
+        "ECONOMY",
+        "PREMIUM_ECONOMY",
+        "BUSINESS"
+      ]
+    },
+    {
+      "id": "DEL-DXB",
+      "origin": "DEL",
+      "destination": "DXB",
+      "originCity": "Delhi",
+      "destinationCity": "Dubai",
+      "originCountry": "India",
+      "destinationCountry": "United Arab Emirates",
+      "distanceKm": 2183,
+      "typicalStops": 0,
+      "typicalDurationMinutes": 201,
+      "nonstopAvailable": true,
+      "airlines": [
+        "EK",
+        "AI",
+        "6E",
+        "EK2"
+      ],
+      "demandIndex": 95,
+      "peakMonths": [
+        "Jan",
+        "Nov",
+        "Dec"
+      ],
+      "cabinClasses": [
+        "ECONOMY",
+        "PREMIUM_ECONOMY",
+        "BUSINESS"
+      ]
+    },
+    {
+      "id": "DEL-LHR",
+      "origin": "DEL",
+      "destination": "LHR",
+      "originCity": "Delhi",
+      "destinationCity": "London",
+      "originCountry": "India",
+      "destinationCountry": "United Kingdom",
+      "distanceKm": 6731,
+      "typicalStops": 0,
+      "typicalDurationMinutes": 548,
+      "nonstopAvailable": true,
+      "airlines": [
+        "BA",
+        "AI",
+        "VS"
+      ],
+      "demandIndex": 93,
+      "peakMonths": [
+        "Jul",
+        "Aug",
+        "Dec"
+      ],
+      "cabinClasses": [
+        "ECONOMY",
+        "PREMIUM_ECONOMY",
+        "BUSINESS"
+      ]
+    },
+    {
+      "id": "DEL-JFK",
+      "origin": "DEL",
+      "destination": "JFK",
+      "originCity": "Delhi",
+      "destinationCity": "New York",
+      "originCountry": "India",
+      "destinationCountry": "United States",
+      "distanceKm": 11755,
+      "typicalStops": 0,
+      "typicalDurationMinutes": 931,
+      "nonstopAvailable": true,
+      "airlines": [
+        "AI"
+      ],
+      "demandIndex": 86,
+      "peakMonths": [
+        "Jun",
+        "Jul",
+        "Dec"
+      ],
+      "cabinClasses": [
+        "ECONOMY",
+        "PREMIUM_ECONOMY",
+        "BUSINESS"
+      ]
+    },
+    {
+      "id": "DEL-EWR",
+      "origin": "DEL",
+      "destination": "EWR",
+      "originCity": "Delhi",
+      "destinationCity": "Newark",
+      "originCountry": "India",
+      "destinationCountry": "United States",
+      "distanceKm": 11765,
+      "typicalStops": 0,
+      "typicalDurationMinutes": 932,
+      "nonstopAvailable": true,
+      "airlines": [
+        "AI",
+        "UA"
+      ],
+      "demandIndex": 74,
+      "peakMonths": [
+        "Jun",
+        "Dec"
+      ],
+      "cabinClasses": [
+        "ECONOMY",
+        "PREMIUM_ECONOMY",
+        "BUSINESS"
+      ]
+    },
+    {
+      "id": "DEL-SFO",
+      "origin": "DEL",
+      "destination": "SFO",
+      "originCity": "Delhi",
+      "destinationCity": "San Francisco",
+      "originCountry": "India",
+      "destinationCountry": "United States",
+      "distanceKm": 12382,
+      "typicalStops": 0,
+      "typicalDurationMinutes": 979,
+      "nonstopAvailable": true,
+      "airlines": [
+        "AI",
+        "UA"
+      ],
+      "demandIndex": 78,
+      "peakMonths": [
+        "May",
+        "Jun",
+        "Dec"
+      ],
+      "cabinClasses": [
+        "ECONOMY",
+        "PREMIUM_ECONOMY",
+        "BUSINESS"
+      ]
+    },
+    {
+      "id": "DEL-ORD",
+      "origin": "DEL",
+      "destination": "ORD",
+      "originCity": "Delhi",
+      "destinationCity": "Chicago",
+      "originCountry": "India",
+      "destinationCountry": "United States",
+      "distanceKm": 12023,
+      "typicalStops": 0,
+      "typicalDurationMinutes": 952,
+      "nonstopAvailable": true,
+      "airlines": [
+        "AI"
+      ],
+      "demandIndex": 62,
+      "peakMonths": [
+        "Jun",
+        "Dec"
+      ],
+      "cabinClasses": [
+        "ECONOMY",
+        "PREMIUM_ECONOMY",
+        "BUSINESS"
+      ]
+    },
+    {
+      "id": "DEL-SIN",
+      "origin": "DEL",
+      "destination": "SIN",
+      "originCity": "Delhi",
+      "destinationCity": "Singapore",
+      "originCountry": "India",
+      "destinationCountry": "Singapore",
+      "distanceKm": 4157,
+      "typicalStops": 0,
+      "typicalDurationMinutes": 352,
+      "nonstopAvailable": true,
+      "airlines": [
+        "SQ",
+        "AI",
+        "6E"
+      ],
+      "demandIndex": 80,
+      "peakMonths": [
+        "Mar",
+        "Oct",
+        "Dec"
+      ],
+      "cabinClasses": [
+        "ECONOMY",
+        "PREMIUM_ECONOMY",
+        "BUSINESS"
+      ]
+    },
+    {
+      "id": "DEL-SYD",
+      "origin": "DEL",
+      "destination": "SYD",
+      "originCity": "Delhi",
+      "destinationCity": "Sydney",
+      "originCountry": "India",
+      "destinationCountry": "Australia",
+      "distanceKm": 10434,
+      "typicalStops": 0,
+      "typicalDurationMinutes": 830,
+      "nonstopAvailable": true,
+      "airlines": [
+        "AI",
+        "QF"
+      ],
+      "demandIndex": 66,
+      "peakMonths": [
+        "Dec",
+        "Jan",
+        "Jun"
+      ],
+      "cabinClasses": [
+        "ECONOMY",
+        "PREMIUM_ECONOMY",
+        "BUSINESS"
+      ]
+    },
+    {
+      "id": "DEL-MEL",
+      "origin": "DEL",
+      "destination": "MEL",
+      "originCity": "Delhi",
+      "destinationCity": "Melbourne",
+      "originCountry": "India",
+      "destinationCountry": "Australia",
+      "distanceKm": 10191,
+      "typicalStops": 1,
+      "typicalDurationMinutes": 1102,
+      "nonstopAvailable": false,
+      "airlines": [
+        "SQ",
+        "QF",
+        "TK",
+        "EK"
+      ],
+      "demandIndex": 58,
+      "peakMonths": [
+        "Dec",
+        "Jan"
+      ],
+      "cabinClasses": [
+        "ECONOMY",
+        "PREMIUM_ECONOMY",
+        "BUSINESS"
+      ]
+    },
+    {
+      "id": "DEL-FRA",
+      "origin": "DEL",
+      "destination": "FRA",
+      "originCity": "Delhi",
+      "destinationCity": "Frankfurt",
+      "originCountry": "India",
+      "destinationCountry": "Germany",
+      "distanceKm": 6122,
+      "typicalStops": 0,
+      "typicalDurationMinutes": 502,
+      "nonstopAvailable": true,
+      "airlines": [
+        "LH",
+        "AI"
+      ],
+      "demandIndex": 69,
+      "peakMonths": [
+        "Jun",
+        "Sep"
+      ],
+      "cabinClasses": [
+        "ECONOMY",
+        "PREMIUM_ECONOMY",
+        "BUSINESS"
+      ]
+    },
+    {
+      "id": "DEL-IST",
+      "origin": "DEL",
+      "destination": "IST",
+      "originCity": "Delhi",
+      "destinationCity": "Istanbul",
+      "originCountry": "India",
+      "destinationCountry": "Turkey",
+      "distanceKm": 4565,
+      "typicalStops": 0,
+      "typicalDurationMinutes": 383,
+      "nonstopAvailable": true,
+      "airlines": [
+        "TK",
+        "AI"
+      ],
+      "demandIndex": 61,
+      "peakMonths": [
+        "Apr",
+        "Sep"
+      ],
+      "cabinClasses": [
+        "ECONOMY",
+        "PREMIUM_ECONOMY",
+        "BUSINESS"
+      ]
+    },
+    {
+      "id": "DEL-DOH",
+      "origin": "DEL",
+      "destination": "DOH",
+      "originCity": "Delhi",
+      "destinationCity": "Doha",
+      "originCountry": "India",
+      "destinationCountry": "Qatar",
+      "distanceKm": 2549,
+      "typicalStops": 0,
+      "typicalDurationMinutes": 229,
+      "nonstopAvailable": true,
+      "airlines": [
+        "QR",
+        "AI",
+        "6E"
+      ],
+      "demandIndex": 72,
+      "peakMonths": [
+        "Jan",
+        "Nov"
+      ],
+      "cabinClasses": [
+        "ECONOMY",
+        "PREMIUM_ECONOMY",
+        "BUSINESS"
+      ]
+    },
+    {
+      "id": "DEL-AUH",
+      "origin": "DEL",
+      "destination": "AUH",
+      "originCity": "Delhi",
+      "destinationCity": "Abu Dhabi",
+      "originCountry": "India",
+      "destinationCountry": "United Arab Emirates",
+      "distanceKm": 2277,
+      "typicalStops": 0,
+      "typicalDurationMinutes": 209,
+      "nonstopAvailable": true,
+      "airlines": [
+        "EY",
+        "AI",
+        "6E"
+      ],
+      "demandIndex": 65,
+      "peakMonths": [
+        "Jan",
+        "Nov"
+      ],
+      "cabinClasses": [
+        "ECONOMY",
+        "PREMIUM_ECONOMY",
+        "BUSINESS"
+      ]
+    },
+    {
+      "id": "BOM-YYZ",
+      "origin": "BOM",
+      "destination": "YYZ",
+      "originCity": "Mumbai",
+      "destinationCity": "Toronto",
+      "originCountry": "India",
+      "destinationCountry": "Canada",
+      "distanceKm": 12493,
+      "typicalStops": 0,
+      "typicalDurationMinutes": 987,
+      "nonstopAvailable": true,
+      "airlines": [
+        "AC",
+        "AI"
+      ],
+      "demandIndex": 70,
+      "peakMonths": [
+        "Jun",
+        "Dec"
+      ],
+      "cabinClasses": [
+        "ECONOMY",
+        "PREMIUM_ECONOMY",
+        "BUSINESS"
+      ]
+    },
+    {
+      "id": "BOM-LHR",
+      "origin": "BOM",
+      "destination": "LHR",
+      "originCity": "Mumbai",
+      "destinationCity": "London",
+      "originCountry": "India",
+      "destinationCountry": "United Kingdom",
+      "distanceKm": 7213,
+      "typicalStops": 0,
+      "typicalDurationMinutes": 585,
+      "nonstopAvailable": true,
+      "airlines": [
+        "BA",
+        "AI",
+        "VS"
+      ],
+      "demandIndex": 84,
+      "peakMonths": [
+        "Jul",
+        "Dec"
+      ],
+      "cabinClasses": [
+        "ECONOMY",
+        "PREMIUM_ECONOMY",
+        "BUSINESS"
+      ]
+    },
+    {
+      "id": "BOM-JFK",
+      "origin": "BOM",
+      "destination": "JFK",
+      "originCity": "Mumbai",
+      "destinationCity": "New York",
+      "originCountry": "India",
+      "destinationCountry": "United States",
+      "distanceKm": 12532,
+      "typicalStops": 0,
+      "typicalDurationMinutes": 990,
+      "nonstopAvailable": true,
+      "airlines": [
+        "AI"
+      ],
+      "demandIndex": 76,
+      "peakMonths": [
+        "Jun",
+        "Dec"
+      ],
+      "cabinClasses": [
+        "ECONOMY",
+        "PREMIUM_ECONOMY",
+        "BUSINESS"
+      ]
+    },
+    {
+      "id": "BOM-DXB",
+      "origin": "BOM",
+      "destination": "DXB",
+      "originCity": "Mumbai",
+      "destinationCity": "Dubai",
+      "originCountry": "India",
+      "destinationCountry": "United Arab Emirates",
+      "distanceKm": 1926,
+      "typicalStops": 0,
+      "typicalDurationMinutes": 182,
+      "nonstopAvailable": true,
+      "airlines": [
+        "EK",
+        "AI",
+        "6E",
+        "EK2"
+      ],
+      "demandIndex": 91,
+      "peakMonths": [
+        "Jan",
+        "Nov"
+      ],
+      "cabinClasses": [
+        "ECONOMY",
+        "PREMIUM_ECONOMY",
+        "BUSINESS"
+      ]
+    },
+    {
+      "id": "BOM-SIN",
+      "origin": "BOM",
+      "destination": "SIN",
+      "originCity": "Mumbai",
+      "destinationCity": "Singapore",
+      "originCountry": "India",
+      "destinationCountry": "Singapore",
+      "distanceKm": 3921,
+      "typicalStops": 0,
+      "typicalDurationMinutes": 334,
+      "nonstopAvailable": true,
+      "airlines": [
+        "SQ",
+        "AI",
+        "6E"
+      ],
+      "demandIndex": 68,
+      "peakMonths": [
+        "Mar",
+        "Dec"
+      ],
+      "cabinClasses": [
+        "ECONOMY",
+        "PREMIUM_ECONOMY",
+        "BUSINESS"
+      ]
+    },
+    {
+      "id": "BLR-SFO",
+      "origin": "BLR",
+      "destination": "SFO",
+      "originCity": "Bengaluru",
+      "destinationCity": "San Francisco",
+      "originCountry": "India",
+      "destinationCountry": "United States",
+      "distanceKm": 13988,
+      "typicalStops": 0,
+      "typicalDurationMinutes": 1101,
+      "nonstopAvailable": true,
+      "airlines": [
+        "AI"
+      ],
+      "demandIndex": 67,
+      "peakMonths": [
+        "May",
+        "Sep"
+      ],
+      "cabinClasses": [
+        "ECONOMY",
+        "PREMIUM_ECONOMY",
+        "BUSINESS"
+      ]
+    },
+    {
+      "id": "BLR-YYZ",
+      "origin": "BLR",
+      "destination": "YYZ",
+      "originCity": "Bengaluru",
+      "destinationCity": "Toronto",
+      "originCountry": "India",
+      "destinationCountry": "Canada",
+      "distanceKm": 13285,
+      "typicalStops": 1,
+      "typicalDurationMinutes": 1380,
+      "nonstopAvailable": false,
+      "airlines": [
+        "AC",
+        "EK",
+        "QR",
+        "LH"
+      ],
+      "demandIndex": 52,
+      "peakMonths": [
+        "Jun",
+        "Dec"
+      ],
+      "cabinClasses": [
+        "ECONOMY",
+        "PREMIUM_ECONOMY",
+        "BUSINESS"
+      ]
+    },
+    {
+      "id": "BLR-LHR",
+      "origin": "BLR",
+      "destination": "LHR",
+      "originCity": "Bengaluru",
+      "destinationCity": "London",
+      "originCountry": "India",
+      "destinationCountry": "United Kingdom",
+      "distanceKm": 8046,
+      "typicalStops": 0,
+      "typicalDurationMinutes": 648,
+      "nonstopAvailable": true,
+      "airlines": [
+        "BA",
+        "AI"
+      ],
+      "demandIndex": 64,
+      "peakMonths": [
+        "Jul",
+        "Dec"
+      ],
+      "cabinClasses": [
+        "ECONOMY",
+        "PREMIUM_ECONOMY",
+        "BUSINESS"
+      ]
+    },
+    {
+      "id": "BLR-DXB",
+      "origin": "BLR",
+      "destination": "DXB",
+      "originCity": "Bengaluru",
+      "destinationCity": "Dubai",
+      "originCountry": "India",
+      "destinationCountry": "United Arab Emirates",
+      "distanceKm": 2695,
+      "typicalStops": 0,
+      "typicalDurationMinutes": 240,
+      "nonstopAvailable": true,
+      "airlines": [
+        "EK",
+        "AI",
+        "6E"
+      ],
+      "demandIndex": 73,
+      "peakMonths": [
+        "Jan",
+        "Nov"
+      ],
+      "cabinClasses": [
+        "ECONOMY",
+        "PREMIUM_ECONOMY",
+        "BUSINESS"
+      ]
+    },
+    {
+      "id": "HYD-YYZ",
+      "origin": "HYD",
+      "destination": "YYZ",
+      "originCity": "Hyderabad",
+      "destinationCity": "Toronto",
+      "originCountry": "India",
+      "destinationCountry": "Canada",
+      "distanceKm": 12882,
+      "typicalStops": 1,
+      "typicalDurationMinutes": 1344,
+      "nonstopAvailable": false,
+      "airlines": [
+        "AC",
+        "QR",
+        "EK",
+        "LH"
+      ],
+      "demandIndex": 46,
+      "peakMonths": [
+        "Jun",
+        "Dec"
+      ],
+      "cabinClasses": [
+        "ECONOMY",
+        "PREMIUM_ECONOMY",
+        "BUSINESS"
+      ]
+    },
+    {
+      "id": "HYD-DXB",
+      "origin": "HYD",
+      "destination": "DXB",
+      "originCity": "Hyderabad",
+      "destinationCity": "Dubai",
+      "originCountry": "India",
+      "destinationCountry": "United Arab Emirates",
+      "distanceKm": 2546,
+      "typicalStops": 0,
+      "typicalDurationMinutes": 229,
+      "nonstopAvailable": true,
+      "airlines": [
+        "EK",
+        "AI",
+        "6E"
+      ],
+      "demandIndex": 62,
+      "peakMonths": [
+        "Jan",
+        "Nov"
+      ],
+      "cabinClasses": [
+        "ECONOMY",
+        "PREMIUM_ECONOMY",
+        "BUSINESS"
+      ]
+    },
+    {
+      "id": "MAA-SIN",
+      "origin": "MAA",
+      "destination": "SIN",
+      "originCity": "Chennai",
+      "destinationCity": "Singapore",
+      "originCountry": "India",
+      "destinationCountry": "Singapore",
+      "distanceKm": 2924,
+      "typicalStops": 0,
+      "typicalDurationMinutes": 258,
+      "nonstopAvailable": true,
+      "airlines": [
+        "SQ",
+        "AI",
+        "6E"
+      ],
+      "demandIndex": 59,
+      "peakMonths": [
+        "Mar",
+        "Dec"
+      ],
+      "cabinClasses": [
+        "ECONOMY",
+        "PREMIUM_ECONOMY",
+        "BUSINESS"
+      ]
+    },
+    {
+      "id": "MAA-YYZ",
+      "origin": "MAA",
+      "destination": "YYZ",
+      "originCity": "Chennai",
+      "destinationCity": "Toronto",
+      "originCountry": "India",
+      "destinationCountry": "Canada",
+      "distanceKm": 13388,
+      "typicalStops": 1,
+      "typicalDurationMinutes": 1389,
+      "nonstopAvailable": false,
+      "airlines": [
+        "AC",
+        "EK",
+        "QR"
+      ],
+      "demandIndex": 43,
+      "peakMonths": [
+        "Jun",
+        "Dec"
+      ],
+      "cabinClasses": [
+        "ECONOMY",
+        "PREMIUM_ECONOMY",
+        "BUSINESS"
+      ]
+    },
+    {
+      "id": "AMD-YYZ",
+      "origin": "AMD",
+      "destination": "YYZ",
+      "originCity": "Ahmedabad",
+      "destinationCity": "Toronto",
+      "originCountry": "India",
+      "destinationCountry": "Canada",
+      "distanceKm": 12071,
+      "typicalStops": 1,
+      "typicalDurationMinutes": 1271,
+      "nonstopAvailable": false,
+      "airlines": [
+        "AC",
+        "EK",
+        "QR",
+        "TK"
+      ],
+      "demandIndex": 41,
+      "peakMonths": [
+        "Jun",
+        "Dec"
+      ],
+      "cabinClasses": [
+        "ECONOMY",
+        "PREMIUM_ECONOMY",
+        "BUSINESS"
+      ]
+    },
+    {
+      "id": "COK-DXB",
+      "origin": "COK",
+      "destination": "DXB",
+      "originCity": "Kochi",
+      "destinationCity": "Dubai",
+      "originCountry": "India",
+      "destinationCountry": "United Arab Emirates",
+      "distanceKm": 2782,
+      "typicalStops": 0,
+      "typicalDurationMinutes": 247,
+      "nonstopAvailable": true,
+      "airlines": [
+        "EK",
+        "AI",
+        "6E"
+      ],
+      "demandIndex": 57,
+      "peakMonths": [
+        "Jan",
+        "Nov"
+      ],
+      "cabinClasses": [
+        "ECONOMY",
+        "PREMIUM_ECONOMY",
+        "BUSINESS"
+      ]
+    },
+    {
+      "id": "DEL-BOM",
+      "origin": "DEL",
+      "destination": "BOM",
+      "originCity": "Delhi",
+      "destinationCity": "Mumbai",
+      "originCountry": "India",
+      "destinationCountry": "India",
+      "distanceKm": 1137,
+      "typicalStops": 0,
+      "typicalDurationMinutes": 122,
+      "nonstopAvailable": true,
+      "airlines": [
+        "AI",
+        "6E",
+        "UK"
+      ],
+      "demandIndex": 97,
+      "peakMonths": [
+        "Oct",
+        "Dec"
+      ],
+      "cabinClasses": [
+        "ECONOMY",
+        "PREMIUM_ECONOMY",
+        "BUSINESS"
+      ]
+    },
+    {
+      "id": "DEL-BLR",
+      "origin": "DEL",
+      "destination": "BLR",
+      "originCity": "Delhi",
+      "destinationCity": "Bengaluru",
+      "originCountry": "India",
+      "destinationCountry": "India",
+      "distanceKm": 1709,
+      "typicalStops": 0,
+      "typicalDurationMinutes": 165,
+      "nonstopAvailable": true,
+      "airlines": [
+        "AI",
+        "6E",
+        "UK"
+      ],
+      "demandIndex": 94,
+      "peakMonths": [
+        "Oct",
+        "Dec"
+      ],
+      "cabinClasses": [
+        "ECONOMY",
+        "PREMIUM_ECONOMY",
+        "BUSINESS"
+      ]
+    },
+    {
+      "id": "YYZ-LHR",
+      "origin": "YYZ",
+      "destination": "LHR",
+      "originCity": "Toronto",
+      "destinationCity": "London",
+      "originCountry": "Canada",
+      "destinationCountry": "United Kingdom",
+      "distanceKm": 5707,
+      "typicalStops": 0,
+      "typicalDurationMinutes": 470,
+      "nonstopAvailable": true,
+      "airlines": [
+        "AC",
+        "BA",
+        "WS"
+      ],
+      "demandIndex": 82,
+      "peakMonths": [
+        "Jul",
+        "Aug"
+      ],
+      "cabinClasses": [
+        "ECONOMY",
+        "PREMIUM_ECONOMY",
+        "BUSINESS"
+      ]
+    },
+    {
+      "id": "YYZ-DXB",
+      "origin": "YYZ",
+      "destination": "DXB",
+      "originCity": "Toronto",
+      "destinationCity": "Dubai",
+      "originCountry": "Canada",
+      "destinationCountry": "United Arab Emirates",
+      "distanceKm": 11082,
+      "typicalStops": 0,
+      "typicalDurationMinutes": 880,
+      "nonstopAvailable": true,
+      "airlines": [
+        "EK",
+        "AC"
+      ],
+      "demandIndex": 60,
+      "peakMonths": [
+        "Dec",
+        "Feb"
+      ],
+      "cabinClasses": [
+        "ECONOMY",
+        "PREMIUM_ECONOMY",
+        "BUSINESS"
+      ]
+    }
+  ]
+}
