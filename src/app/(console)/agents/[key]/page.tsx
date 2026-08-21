@@ -4,6 +4,9 @@ import { readJson, readStringArray } from "@/core/db/json";
 import { requireProject } from "@/app/(console)/_lib/data";
 import { Badge, Card, EmptyState, Grid, KeyValue, Mono, PageHeader, StatusBadge, Table, timeAgo } from "@/ui/primitives";
 import { RunAgentButton } from "@/ui/run-agent-button";
+import { AgentSkillManager, type AgentSkillRow } from "@/app/(console)/agents/[key]/agent-skill-manager";
+import { roleHas } from "@/core/security/rbac";
+import { computeEffectiveTools } from "@/skills/types";
 import { formatDuration, formatMoney, formatNumber } from "@/core/utils/text";
 
 export const dynamic = "force-dynamic";
@@ -19,13 +22,51 @@ const MANUAL_INPUTS: Record<string, { label: string; input: Record<string, unkno
 
 export default async function AgentDetailPage({ params }: { params: Promise<{ key: string }> }) {
   const { key } = await params;
-  const { project } = await requireProject();
+  const { auth, project } = await requireProject();
 
   const agent = await prisma.agent.findUnique({
     where: { key },
-    include: { skills: { include: { skill: true }, orderBy: { priority: "asc" } } },
+    include: {
+      skills: {
+        include: {
+          skill: { include: { activeVersion: true, versions: { orderBy: { version: "desc" } } } },
+          pinnedVersion: true,
+        },
+        orderBy: { priority: "asc" },
+      },
+    },
   });
   if (!agent) notFound();
+
+  // Resolve what each assigned skill would ACTUALLY run for this agent, and
+  // which of its requested tools this agent cannot grant.
+  const agentAllowedTools = readStringArray(agent.allowedToolsJson);
+
+  const skillRows: AgentSkillRow[] = agent.skills.map((as) => {
+    const resolved = as.pinnedVersion ?? as.skill.activeVersion;
+    const requested = readStringArray(resolved?.allowedToolsJson ?? "[]");
+    const scope = computeEffectiveTools(agentAllowedTools, [{ allowedTools: requested }]);
+    return {
+      skillId: as.skill.id,
+      skillKey: as.skill.key,
+      name: as.skill.name,
+      description: as.skill.description,
+      skillStatus: as.skill.status,
+      resolvedVersion: resolved?.version ?? null,
+      resolvedStatus: resolved?.status ?? null,
+      pinnedVersionId: as.pinnedVersionId,
+      enabled: as.isEnabled,
+      updatedAt: as.skill.updatedAt.toISOString(),
+      versions: as.skill.versions.map((v) => ({ id: v.id, version: v.version, status: v.status })),
+      deniedTools: scope.deniedTools,
+    };
+  });
+
+  const unassignedSkills = await prisma.skill.findMany({
+    where: { status: "ACTIVE", agents: { none: { agentId: agent.id } } },
+    orderBy: { name: "asc" },
+    select: { id: true, name: true },
+  });
 
   const [runs, toolCalls, agg] = await Promise.all([
     prisma.agentRun.findMany({
@@ -133,22 +174,17 @@ export default async function AgentDetailPage({ params }: { params: Promise<{ ke
           </div>
         </Card>
 
-        <Card title="Skills" description="Reusable instructions injected into every run.">
-          {agent.skills.length ? (
-            <div className="space-y-3">
-              {agent.skills.map((as) => (
-                <div key={as.id}>
-                  <div className="flex items-center gap-2">
-                    <span className="text-[12.5px] font-semibold">{as.skill.name}</span>
-                    <Mono>v{as.skill.version}</Mono>
-                  </div>
-                  <p className="mt-0.5 text-[11.5px] text-[var(--color-ink-3)]">{as.skill.description}</p>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <EmptyState title="No skills attached" />
-          )}
+        <Card
+          title="Skills"
+          description="Resolved agent → assignment → version. Each run records the exact version it used."
+        >
+          <AgentSkillManager
+            agentKey={agent.key}
+            skills={skillRows}
+            availableSkills={unassignedSkills}
+            canAssign={roleHas(auth.role, "skill:assign")}
+            canTest={roleHas(auth.role, "skill:test")}
+          />
         </Card>
 
         <Card title="Contract" description="Typed input/output and the rules applied to its own output.">
@@ -181,7 +217,7 @@ export default async function AgentDetailPage({ params }: { params: Promise<{ ke
 
       <Card title="Run history" description="Input, output, tools, cost, confidence and errors for every run." padded={false} className="mb-5">
         {runs.length ? (
-          <Table head={["Started", "Status", "Task", "Summary", "Tools", "Conf.", "Time", "Cost"]}>
+          <Table head={["Started", "Status", "Task", "Summary", "Skill versions", "Tools", "Conf.", "Time", "Cost"]}>
             {runs.map((r) => (
               <tr key={r.id}>
                 <td className="whitespace-nowrap text-[12px] text-[var(--color-ink-3)]">{timeAgo(r.startedAt)}</td>
@@ -198,6 +234,24 @@ export default async function AgentDetailPage({ params }: { params: Promise<{ ke
                   <div className="text-[var(--color-ink-2)]">{r.outputSummary || "—"}</div>
                   {r.error ? <div className="mt-0.5 text-[var(--color-danger)]">{r.error}</div> : null}
                   {r.nextAction ? <div className="mt-0.5 text-[11px] text-[var(--color-ink-4)]">next: {r.nextAction}</div> : null}
+                </td>
+                <td className="text-[11px]">
+                  {(() => {
+                    // Recorded at execution time. Editing a skill afterwards
+                    // cannot change what this run reports.
+                    const used = readJson<{ skillKey: string; version: number; pinned?: boolean }[]>(r.skillsUsedJson, []);
+                    if (!used.length) return <span className="text-[var(--color-ink-4)]">—</span>;
+                    return (
+                      <div className="flex flex-col gap-0.5">
+                        {used.map((s) => (
+                          <Mono key={s.skillKey} title={s.pinned ? "Assignment was pinned to this version" : "Followed the active version"}>
+                            {s.skillKey} v{s.version}
+                            {s.pinned ? " (pinned)" : ""}
+                          </Mono>
+                        ))}
+                      </div>
+                    );
+                  })()}
                 </td>
                 <td className="text-[11px]">
                   {r.toolCalls.length ? (

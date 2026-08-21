@@ -18,7 +18,8 @@ import { AgentError, AgentTimeoutError, describeError, toAppError } from "@/core
 import type { AgentIdentity, ControlPlane } from "@/control-plane/control-plane";
 import { executeTool } from "@/tools/registry";
 import "@/tools/definitions";
-import { renderSkills, skillsForAgent, type LoadedSkill } from "@/skills/registry";
+import { renderSkills, resolveAgentSkills } from "@/skills/registry";
+import { computeEffectiveTools, toUsageRecord, type EffectiveToolScope, type ResolvedSkill } from "@/skills/types";
 import { loadBrand, renderBrand, type BrandKnowledge } from "@/modules/brand/brand";
 
 export interface AgentRunContext {
@@ -29,7 +30,10 @@ export interface AgentRunContext {
   agentRunId: string;
   taskId?: string;
   logger: Logger;
-  skills: LoadedSkill[];
+  /** Skills resolved all the way down to immutable versions. */
+  skills: ResolvedSkill[];
+  /** Agent allowlist ∩ skill requests. What this run may actually reach. */
+  toolScope: EffectiveToolScope;
   brand: BrandKnowledge | null;
   /** Composed system prompt: role + skills + brand. */
   systemPrompt: string;
@@ -137,7 +141,28 @@ export abstract class BaseAgent<I, O> {
     let costUsd = 0;
     let sawMock = false;
 
-    const skills = await skillsForAgent(this.key);
+    // Resolve agent -> assignment -> active/pinned version. The version ids are
+    // recorded on the run so this execution stays reproducible after the skill
+    // is edited.
+    const skills = await resolveAgentSkills(this.key);
+    const toolScope = computeEffectiveTools(identity.allowedTools, skills);
+
+    if (toolScope.deniedTools.length) {
+      logger.warn("skill requested tools the agent does not hold - not granted", {
+        agent: this.key,
+        denied: toolScope.deniedTools,
+      });
+    }
+    if (toolScope.narrowingSkippedReason) {
+      logger.warn("skill tool declarations do not apply to this agent", {
+        agent: this.key,
+        reason: toolScope.narrowingSkippedReason,
+      });
+    }
+    if (toolScope.narrowed) {
+      logger.debug("tool scope narrowed by skills", { effective: toolScope.effectiveTools });
+    }
+
     const brand = this.needsBrand ? await loadBrand(ctxInfo.projectId).catch(() => null) : null;
 
     const systemPrompt = [
@@ -158,6 +183,7 @@ export abstract class BaseAgent<I, O> {
       taskId: opts.taskId,
       logger,
       skills,
+      toolScope,
       brand,
       systemPrompt,
       tool: async <T = any>(toolKey: string, toolInput: unknown): Promise<T> => {
@@ -166,6 +192,9 @@ export abstract class BaseAgent<I, O> {
           agent: identity,
           agentRunId: agentRun.id,
           taskId: opts.taskId,
+          // Narrowing only. The control plane still checks the agent allowlist
+          // independently; a skill can never widen what the agent may reach.
+          skillScopedTools: toolScope.narrowed ? toolScope.effectiveTools : undefined,
         });
         if (!toolsUsed.includes(toolKey)) toolsUsed.push(toolKey);
         costUsd += res.costUsd;
@@ -234,7 +263,7 @@ export abstract class BaseAgent<I, O> {
             outputSummary: outcome.summary.slice(0, 1000),
             outputJson: writeJson(parsedOutput.data),
             toolsUsedJson: writeJson(toolsUsed),
-            skillsUsedJson: writeJson(skills.map((s) => s.key)),
+            skillsUsedJson: writeJson(skills.map(toUsageRecord)),
             tokensIn,
             tokensOut,
             costUsd,

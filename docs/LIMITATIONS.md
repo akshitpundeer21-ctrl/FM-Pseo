@@ -27,6 +27,9 @@ An honest inventory. If something is not in the "implemented" list, assume it is
 
 ### Content engine
 - Brand/content knowledge layer, enforced by a deterministic compliance check
+- Full skill management: immutable versions, DRAFT/TESTING/READY/ACTIVE/ARCHIVED lifecycle, activation
+  preflight (validation + automated tests), rollback, per-agent assignment with version pinning, a
+  no-side-effects sandbox, a playground with version comparison, and skill-scoped tool narrowing
 - 17-component reusable library with required/optional data bindings and named generation slots
 - Template system with per-block conditions, overrides and content-source classification
 - Safe expression evaluator (purpose-built parser, never `eval`)
@@ -56,7 +59,7 @@ An honest inventory. If something is not in the "implemented" list, assume it is
 
 ### Interface
 - 23 dashboard sections, all rendering live data
-- 93 passing tests (unit, integration, end-to-end)
+- 121 passing tests (unit, integration, end-to-end, skill management)
 
 ---
 
@@ -108,6 +111,14 @@ A project switcher is UI work, not architecture work.
 ### Google service-account JWT flow
 GSC/GA4 support the OAuth refresh-token flow. The service-account path is recognised but the JWT signing
 step is not implemented — the provider raises a configuration error rather than pretending.
+
+### Skill test cases in the UI
+`SkillTestCase` rows can be created through the API (`saveAs` on a test call) and are run automatically at
+activation, but the dashboard has no dedicated editor for managing them yet.
+
+### Skill diffing
+Versions are compared by running both in the playground. There is no textual side-by-side diff of two
+versions’ configuration.
 
 ### Component update propagation
 `Template.propagateUpdates` is stored and surfaced, and component versions are recorded per block, but a

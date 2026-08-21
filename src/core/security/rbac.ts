@@ -16,6 +16,11 @@ export type UserPermission =
   | "integration:write"
   | "agent:read"
   | "agent:configure"
+  | "skill:read"
+  | "skill:test"
+  | "skill:write"
+  | "skill:activate"
+  | "skill:assign"
   | "task:read"
   | "task:run"
   | "content:read"
@@ -36,6 +41,11 @@ const MATRIX: Record<Role, UserPermission[]> = {
     "integration:write",
     "agent:read",
     "agent:configure",
+    "skill:read",
+    "skill:test",
+    "skill:write",
+    "skill:activate",
+    "skill:assign",
     "task:read",
     "task:run",
     "content:read",
@@ -54,6 +64,11 @@ const MATRIX: Record<Role, UserPermission[]> = {
     "integration:write",
     "agent:read",
     "agent:configure",
+    "skill:read",
+    "skill:test",
+    "skill:write",
+    "skill:activate",
+    "skill:assign",
     "task:read",
     "task:run",
     "content:read",
@@ -68,13 +83,15 @@ const MATRIX: Record<Role, UserPermission[]> = {
     "brand:write",
     "integration:read",
     "agent:read",
+    "skill:read",
+    "skill:test",
     "task:read",
     "task:run",
     "content:read",
     "content:write",
     "approval:read",
   ],
-  VIEWER: ["project:read", "integration:read", "agent:read", "task:read", "content:read", "approval:read"],
+  VIEWER: ["project:read", "integration:read", "agent:read", "skill:read", "task:read", "content:read", "approval:read"],
 };
 
 export function roleHas(role: Role, permission: UserPermission): boolean {

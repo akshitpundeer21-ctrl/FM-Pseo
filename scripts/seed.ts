@@ -18,6 +18,7 @@ import { hashPassword } from "../src/core/security/crypto";
 import { writeJson } from "../src/core/db/json";
 import { AGENT_DEFINITIONS } from "../src/agents/definitions";
 import { SKILLS, AGENT_SKILL_MAP } from "../src/skills/definitions";
+import { enrichMigratedVersions, seedSkills } from "./_seed-skills";
 import { COMPONENT_LIBRARY } from "../src/engine/templates/component-library";
 import { DEFAULT_BRAND } from "../src/modules/brand/brand";
 import { WORKFLOWS } from "../src/engine/workflow/definitions";
@@ -127,32 +128,12 @@ async function main() {
   });
   console.log("  brand profile FaresMatch voice + SEO/AEO/GEO rules");
 
-  // --- skills --------------------------------------------------------------
-  for (const skill of SKILLS) {
-    await prisma.skill.upsert({
-      where: { key: skill.key },
-      update: {
-        name: skill.name,
-        category: skill.category,
-        description: skill.description,
-        instructions: skill.instructions,
-        methodologyJson: writeJson(skill.methodology),
-        constraintsJson: writeJson(skill.constraints),
-        outputContractJson: writeJson(skill.outputContract),
-      },
-      create: {
-        key: skill.key,
-        name: skill.name,
-        category: skill.category,
-        description: skill.description,
-        instructions: skill.instructions,
-        methodologyJson: writeJson(skill.methodology),
-        constraintsJson: writeJson(skill.constraints),
-        outputContractJson: writeJson(skill.outputContract),
-      },
-    });
-  }
-  console.log(`  skills        ${SKILLS.length} skills in the library`);
+  // --- skills (identity + immutable v1 version) -----------------------------
+  const skillResult = await seedSkills();
+  const enriched = await enrichMigratedVersions();
+  console.log(
+    `  skills        ${SKILLS.length} in the library (${skillResult.created} created, ${skillResult.existing} already versioned${enriched ? `, ${enriched} enriched` : ""})`,
+  );
 
   // --- agents + skill assignments -----------------------------------------
   for (const def of AGENT_DEFINITIONS) {

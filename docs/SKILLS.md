@@ -5,7 +5,7 @@ data, not code: they live in the `Skill` table, attach to agents through `AgentS
 into the agent's system prompt at run time. An operator can edit a methodology in the dashboard and the
 next run picks it up — no redeploy, no code change.
 
-Each skill carries four things:
+Each version of a skill carries:
 
 | Part | Purpose |
 | --- | --- |
@@ -13,6 +13,9 @@ Each skill carries four things:
 | `methodology[]` | The ordered procedure to follow |
 | `constraints[]` | Hard rules. Violating one should fail validation, not merely look wrong |
 | `outputContract{}` | The shape the agent is expected to produce |
+| `inputs[]` / `outputs[]` | Typed, validated schema for what goes in and comes out |
+| `allowedTools[]` | Tools the skill requests — always intersected with the agent allowlist |
+| `examples[]` | Worked input/output pairs included in the prompt |
 
 Browse them live at `/skills`.
 
@@ -137,11 +140,23 @@ Never claim causality without a controlled comparison.
 
 ---
 
+## Managing skills
+
+Skills are versioned, testable and manageable from the dashboard: create, edit as a draft, test in a
+sandbox, activate, assign to agents, pin a version, and roll back. See
+[SKILL-MANAGEMENT.md](SKILL-MANAGEMENT.md) for the lifecycle, the tool-intersection rules and the API.
+
 ## Adding or editing a skill
 
-Add an entry to `SKILLS` in `src/skills/definitions.ts` and map it to agents in `AGENT_SKILL_MAP`, then
-re-run `npm run seed` (upserts, so it is safe to re-run).
+**In the dashboard** — create it at `/skills`, write the instructions, declare inputs, outputs and any
+requested tools, test it in the sandbox, assign it to agents and activate it. No code, no redeploy.
 
-To change an existing skill's wording without a deploy, edit the row in the database — `skillsForAgent()`
-reads it fresh on every run. Bump `version` when the change is material, so run history remains
-interpretable.
+**In code** (for skills that ship with the product) — add the prose to `SKILLS` in
+`src/skills/definitions.ts`, the schemas and tool requests to `SKILL_EXTRAS` in
+`src/skills/seed-config.ts`, map it to agents in `AGENT_SKILL_MAP`, then run `npm run seed`. The seed is
+idempotent and never overwrites a skill that already has versions.
+
+Editing an existing skill always creates a new **DRAFT** version — the active version keeps serving
+production until the draft is activated, and versions are immutable once they leave DRAFT. That is what
+keeps run history interpretable: a run from last month still reports the exact version it executed.
+See [SKILL-MANAGEMENT.md](SKILL-MANAGEMENT.md).

@@ -232,37 +232,164 @@ model Agent {
 
   @@index([organizationId])
 }
-
+/// A skill's stable identity. All content lives in SkillVersion, so editing a
+/// skill never destroys what a previous agent run actually used.
 model Skill {
-  id                 String   @id @default(cuid())
-  key                String   @unique
-  name               String
-  category           String
-  description        String
-  /// The reusable instruction body injected into agent prompts.
-  instructions       String
-  methodologyJson    String   @default("[]")
-  constraintsJson    String   @default("[]")
-  outputContractJson String   @default("{}")
-  version            Int      @default(1)
-  isActive           Boolean  @default(true)
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
+  id              String   @id @default(cuid())
+  key             String   @unique
+  name            String
+  category        String
+  description     String
+  /// ACTIVE | INACTIVE - an operator switch, independent of version lifecycle.
+  /// An INACTIVE skill is skipped at resolution time even where it is assigned.
+  status          String   @default("ACTIVE")
+  /// The version agents resolve to unless an assignment pins a different one.
+  activeVersionId String?  @unique
+  createdBy       String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
-  agents AgentSkill[]
+  activeVersion SkillVersion?   @relation("SkillActiveVersion", fields: [activeVersionId], references: [id], onDelete: SetNull)
+  versions      SkillVersion[]  @relation("SkillVersions")
+  agents        AgentSkill[]
+  testCases     SkillTestCase[]
+  testRuns      SkillTestRun[]
+
+  @@index([status, category])
 }
 
+/// An immutable snapshot of a skill's complete configuration.
+///
+/// Mutable only while in DRAFT. Once it leaves DRAFT the row is frozen, which is
+/// what makes a historical AgentRun reproducible: the run stores this row's id,
+/// and this row can never change afterwards.
+///
+/// Lifecycle: DRAFT -> TESTING -> READY -> ACTIVE -> ARCHIVED
+/// (plus ARCHIVED -> ACTIVE for rollback, and READY/TESTING -> DRAFT to reopen)
+model SkillVersion {
+  id            String @id @default(cuid())
+  skillId       String
+  version       Int
+  status        String @default("DRAFT")
+  changeSummary String @default("")
+
+  /// The instruction body injected into the agent's system prompt.
+  instructions        String
+  methodologyJson     String @default("[]")
+  constraintsJson     String @default("[]")
+  qualityCriteriaJson String @default("[]")
+  safetyRulesJson     String @default("[]")
+  businessRulesJson   String @default("[]")
+  /// [{ name, type, required, description, validation }]
+  inputSchemaJson     String @default("[]")
+  /// [{ name, type, required, description, validation }]
+  outputSchemaJson    String @default("[]")
+  /// Human-readable output summary, kept for prompt rendering.
+  outputContractJson  String @default("{}")
+  /// [{ name, input, expectedOutput, notes }]
+  examplesJson        String @default("[]")
+  /// Tools this skill REQUESTS. Always intersected with the agent's allowlist -
+  /// a skill can never grant a tool the agent does not already hold.
+  allowedToolsJson    String @default("[]")
+  /// { tier, temperature, maxTokens, notes }
+  modelGuidanceJson   String @default("{}")
+
+  createdBy   String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  activatedAt DateTime?
+  archivedAt  DateTime?
+
+  skill       Skill          @relation("SkillVersions", fields: [skillId], references: [id], onDelete: Cascade)
+  activeFor   Skill?         @relation("SkillActiveVersion")
+  assignments AgentSkill[]
+  testRuns    SkillTestRun[]
+
+  @@unique([skillId, version])
+  @@index([skillId, status])
+}
+
+/// Assignment of a skill to an agent.
 model AgentSkill {
   id       String @id @default(cuid())
   agentId  String
   skillId  String
   priority Int    @default(100)
+  /// Null = follow the skill's active version. Set = pinned to this exact one.
+  pinnedVersionId String?
+  isEnabled       Boolean  @default(true)
+  assignedBy      String?
+  createdAt       DateTime @default(now())
 
-  agent Agent @relation(fields: [agentId], references: [id], onDelete: Cascade)
-  skill Skill @relation(fields: [skillId], references: [id], onDelete: Cascade)
+  agent         Agent         @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  skill         Skill         @relation(fields: [skillId], references: [id], onDelete: Cascade)
+  pinnedVersion SkillVersion? @relation(fields: [pinnedVersionId], references: [id], onDelete: SetNull)
 
   @@unique([agentId, skillId])
   @@index([skillId])
+  @@index([pinnedVersionId])
+}
+
+/// A reusable sample input for exercising a skill in the sandbox.
+model SkillTestCase {
+  id               String   @id @default(cuid())
+  skillId          String
+  name             String
+  description      String?
+  inputJson        String   @default("{}")
+  /// [{ type: contains|not_contains|matches|min_words|max_words|json_field, value }]
+  expectationsJson String   @default("[]")
+  createdBy        String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  skill Skill          @relation(fields: [skillId], references: [id], onDelete: Cascade)
+  runs  SkillTestRun[]
+
+  @@index([skillId])
+}
+
+/// One sandboxed execution of a skill version. Never touches production data.
+model SkillTestRun {
+  id             String  @id @default(cuid())
+  skillId        String
+  skillVersionId String
+  testCaseId     String?
+  /// Agent the test was scoped to, for effective-tool resolution.
+  agentKey       String?
+  projectId      String?
+  /// RUNNING | PASSED | FAILED | ERROR
+  status         String  @default("RUNNING")
+
+  inputJson          String  @default("{}")
+  outputText         String  @default("")
+  model              String  @default("")
+  provider           String  @default("")
+  /// Tools the skill asked for.
+  toolsRequestedJson String  @default("[]")
+  /// Agent allowlist ∩ skill request - what the run could actually reach.
+  effectiveToolsJson String  @default("[]")
+  /// Tools genuinely invoked during the test.
+  toolsUsedJson      String  @default("[]")
+  /// [{ check, passed, severity, message }]
+  validationJson     String  @default("[]")
+  errorsJson         String  @default("[]")
+  confidence         Float   @default(0)
+  tokensIn           Int     @default(0)
+  tokensOut          Int     @default(0)
+  costUsd            Float   @default(0)
+  durationMs         Int     @default(0)
+  isMock             Boolean @default(false)
+
+  createdBy String?
+  createdAt DateTime @default(now())
+
+  skill        Skill          @relation(fields: [skillId], references: [id], onDelete: Cascade)
+  skillVersion SkillVersion   @relation(fields: [skillVersionId], references: [id], onDelete: Cascade)
+  testCase     SkillTestCase? @relation(fields: [testCaseId], references: [id], onDelete: SetNull)
+
+  @@index([skillId, createdAt])
+  @@index([skillVersionId])
 }
 
 // ---------------------------------------------------------------------------

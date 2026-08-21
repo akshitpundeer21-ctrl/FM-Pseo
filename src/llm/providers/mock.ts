@@ -304,6 +304,48 @@ const writers: Record<string, (v: Vars, seed: number) => string> = {
     return lines.join(" ");
   },
 
+  skill_test(v, seed) {
+    // Used by the skill sandbox. Composes a plausible, clearly-labelled response
+    // from the skill's declared output contract and the supplied sample input,
+    // so a skill can be exercised end-to-end with no LLM provider configured.
+    const skill = (v.skill ?? {}) as { name?: string; outputs?: any[]; outputContract?: Record<string, string> };
+    const input = (v.input ?? {}) as Record<string, unknown>;
+    const outputs: any[] = Array.isArray(skill.outputs) && skill.outputs.length
+      ? skill.outputs
+      : Object.entries(skill.outputContract ?? {}).map(([name, description]) => ({ name, description, required: true }));
+
+    const inputLines = Object.entries(input).map(
+      ([k, val]) => `- ${k}: ${typeof val === "object" ? JSON.stringify(val) : String(val)}`,
+    );
+
+    const sections = outputs.map((o: any) => {
+      const label = String(o.name);
+      const hint = String(o.description ?? o.type ?? "");
+      const detail = hint.toLowerCase().startsWith("array")
+        ? `Would return a list here, derived from ${inputLines.length ? "the supplied input" : "the resolved data context"}.`
+        : `Would return the ${label} value here, derived from ${inputLines.length ? "the supplied input" : "the resolved data context"}.`;
+      return `${label}: ${detail}`;
+    });
+
+    const opener = seedPick(
+      [
+        `Applying "${skill.name ?? "this skill"}" to the supplied input.`,
+        `Running "${skill.name ?? "this skill"}" against the sample input.`,
+      ],
+      seed,
+    );
+
+    return [
+      "[MOCK SANDBOX OUTPUT - no LLM provider is connected, so this response is composed deterministically from the skill's own output contract. It exercises the skill's schema and validation, not a model's reasoning.]",
+      "",
+      opener,
+      inputLines.length ? `\nInput received:\n${inputLines.join("\n")}` : "",
+      sections.length ? `\nOutput:\n${sections.join("\n")}` : "\nThis skill declares no output contract, so there is nothing to shape a response around.",
+    ]
+      .filter(Boolean)
+      .join("\n");
+  },
+
   ai_assistant_answer(v, seed) {
     // Used ONLY by AI Visibility in mock mode: a synthetic assistant answer so
     // mention/citation extraction has something to parse. Clearly labelled mock.

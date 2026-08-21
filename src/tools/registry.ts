@@ -68,6 +68,13 @@ export interface ExecuteOptions {
   agent: AgentIdentity;
   agentRunId?: string;
   taskId?: string;
+  /**
+   * Optional narrowing from the resolved skills (agent allowlist ∩ skill
+   * requests). This can only RESTRICT: the control-plane check against the
+   * agent's own allowlist runs first and independently, so a skill can never
+   * grant access to a tool the agent does not hold.
+   */
+  skillScopedTools?: string[];
 }
 
 /**
@@ -109,9 +116,23 @@ export async function executeTool<I = any, O = any>(
   };
 
   try {
-    // 1-2. Permission gates.
+    // 1-2. Permission gates. The agent allowlist is authoritative; the skill
+    // scope is a second, narrower gate applied on top of it.
     controlPlane.assertToolAllowed(agent, tool.key);
     controlPlane.assertCapability(agent, tool.requiredCapability);
+
+    if (opts.skillScopedTools && !opts.skillScopedTools.includes(tool.key)) {
+      toolLogger.warn("tool outside the resolved skill scope", {
+        agent: agent.key,
+        tool: tool.key,
+        effective: opts.skillScopedTools,
+      });
+      throw new AppError(
+        "TOOL_NOT_PERMITTED",
+        `Tool "${tool.key}" is outside the tool scope resolved from this agent's skills. Effective scope: ${opts.skillScopedTools.join(", ") || "(none)"}.`,
+        { status: 403, details: { agentKey: agent.key, toolKey: tool.key, effectiveTools: opts.skillScopedTools } },
+      );
+    }
 
     // 3. Budget gate for anything that can spend vendor money.
     if (tool.costly) await controlPlane.assertCanSpend(agent, tool.key);

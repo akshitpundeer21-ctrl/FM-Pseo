@@ -157,7 +157,7 @@ panel states plainly that there are no live results.
 | `npm run dev` | Start the app on http://localhost:3000 |
 | `npm run setup` | Generate the Prisma client, apply migrations, seed configuration |
 | `npm run seed` | Re-seed configuration (idempotent) |
-| `npm test` | Run all 93 tests |
+| `npm test` | Run all 121 tests |
 | `npm run e2e` | Drive the full pipeline from the terminal |
 | `npm run typecheck` | TypeScript, no emit |
 | `npm run build` / `npm start` | Production build and serve |
@@ -175,6 +175,7 @@ panel states plainly that there are no live results.
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | System design, layers, data model, request flow |
 | [docs/AGENTS.md](docs/AGENTS.md) | Every agent: role, skills, tools, capabilities, contracts |
 | [docs/SKILLS.md](docs/SKILLS.md) | The skill library and how skills compose with brand knowledge |
+| [docs/SKILL-MANAGEMENT.md](docs/SKILL-MANAGEMENT.md) | Versioning, activation, rollback, assignment, the sandbox and skill permissions |
 | [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md) | Every integration, the exact credentials it needs, and what breaks without it |
 | [docs/API.md](docs/API.md) | HTTP API reference |
 | [docs/TESTING.md](docs/TESTING.md) | Test strategy and how to run the suites |

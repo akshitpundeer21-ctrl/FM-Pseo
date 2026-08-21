@@ -28,7 +28,14 @@ export function fail(e: unknown) {
   return NextResponse.json(err.toJSON(), { status: err.status });
 }
 
-export async function parseBody<T>(req: Request, schema: z.ZodType<T>): Promise<T> {
+/**
+ * Parse and validate a JSON body.
+ *
+ * Generic over the schema rather than over a value type: inferring from
+ * `z.ZodType<T>` collapses to the *input* type, which makes every `.default()`
+ * look optional to the caller even though parsing has already filled it in.
+ */
+export async function parseBody<S extends z.ZodTypeAny>(req: Request, schema: S): Promise<z.output<S>> {
   const json = await req.json().catch(() => ({}));
   return schema.parse(json);
 }

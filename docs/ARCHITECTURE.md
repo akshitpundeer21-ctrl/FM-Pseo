@@ -77,6 +77,10 @@ and the factory in `registry.ts` (key → implementation). Adding an agent is tw
 
 ### 4. Skills (`src/skills`) and Brand knowledge (`src/modules/brand`)
 
+Skills are versioned and immutable. The runtime resolves `agent → assignment → active (or pinned) version`
+and records the version id on the run, so a historical execution always reports the exact instructions that
+produced it. See [SKILL-MANAGEMENT.md](SKILL-MANAGEMENT.md).
+
 Skills say **how** to do the work — methodology, hard rules, output contract. Brand knowledge says **what
 the output must be like** — voice, audience, banned terms, SEO/AEO/GEO rules, quality standards. Both live
 in the database and are composed into the system prompt at run time, so editing either changes future

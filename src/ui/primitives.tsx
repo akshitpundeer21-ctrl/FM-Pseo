@@ -131,8 +131,12 @@ export function EmptyState({ title, hint, action }: { title: string; hint?: stri
   );
 }
 
-export function Mono({ children, className = "" }: { children: ReactNode; className?: string }) {
-  return <span className={`fm-mono text-[var(--color-ink-2)] ${className}`}>{children}</span>;
+export function Mono({ children, className = "", title }: { children: ReactNode; className?: string; title?: string }) {
+  return (
+    <span title={title} className={`fm-mono text-[var(--color-ink-2)] ${className}`}>
+      {children}
+    </span>
+  );
 }
 
 export function KeyValue({ rows }: { rows: { label: string; value: ReactNode }[] }) {

@@ -1,3 +1,5 @@
+import type { SkillExample, SkillIoField, SkillModelGuidance } from "@/skills/types";
+
 /**
  * Skill Library.
  *
@@ -23,6 +25,16 @@ export interface SkillDefinition {
   constraints: string[];
   /** Shape the skill expects the agent to produce. */
   outputContract: Record<string, string>;
+  /** Declared inputs. Seeded into v1's input schema. */
+  inputs?: SkillIoField[];
+  /** Tools this skill requests. Always intersected with the agent allowlist. */
+  allowedTools?: string[];
+  /** Extra rule categories surfaced separately in the UI. */
+  qualityCriteria?: string[];
+  safetyRules?: string[];
+  businessRules?: string[];
+  examples?: SkillExample[];
+  modelGuidance?: SkillModelGuidance;
 }
 
 export const SKILLS: SkillDefinition[] = [

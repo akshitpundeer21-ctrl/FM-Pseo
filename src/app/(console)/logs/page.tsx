@@ -3,6 +3,7 @@ import { prisma } from "@/core/db/client";
 import { readRecord } from "@/core/db/json";
 import { requireProject } from "@/app/(console)/_lib/data";
 import { recentAudit } from "@/control-plane/audit";
+import { describeAuditEvent } from "@/control-plane/audit-describe";
 import { Badge, Card, EmptyState, Mono, PageHeader, StatusBadge, Table, timeAgo } from "@/ui/primitives";
 
 export const dynamic = "force-dynamic";
@@ -30,6 +31,8 @@ export default async function LogsPage({ searchParams }: { searchParams: Promise
   ]);
 
   const countByLevel = Object.fromEntries(counts.map((c) => [c.level, c._count._all]));
+  const users = await prisma.user.findMany({ select: { id: true, name: true } });
+  const userNames = Object.fromEntries(users.map((u) => [u.id, u.name]));
 
   return (
     <>
@@ -91,22 +94,21 @@ export default async function LogsPage({ searchParams }: { searchParams: Promise
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
         <Card title="Audit trail" description="Every state change, with the actor that made it." padded={false}>
           {audit.length ? (
-            <Table head={["Action", "Actor", "Entity", "When"]}>
+            <div className="divide-y divide-[var(--color-border)]">
               {audit.map((a) => (
-                <tr key={a.id}>
-                  <td>
-                    <Mono className="!text-[var(--color-ink)]">{a.action}</Mono>
-                  </td>
-                  <td className="text-[12px]">
+                <div key={a.id} className="px-4 py-2.5">
+                  <div className="flex flex-wrap items-baseline justify-between gap-2">
+                    <span className="text-[12.5px] text-[var(--color-ink)]">{describeAuditEvent(a, userNames)}</span>
+                    <span className="shrink-0 text-[11px] text-[var(--color-ink-3)]">{timeAgo(a.createdAt)}</span>
+                  </div>
+                  <div className="mt-0.5 flex flex-wrap items-center gap-1.5">
                     <Badge tone={a.actorType === "USER" ? "brand" : a.actorType === "AGENT" ? "info" : "neutral"}>{a.actorType}</Badge>
-                  </td>
-                  <td className="max-w-[220px] truncate text-[11.5px] text-[var(--color-ink-3)]">
-                    {a.entityType ? `${a.entityType}` : "—"}
-                  </td>
-                  <td className="whitespace-nowrap text-[12px] text-[var(--color-ink-3)]">{timeAgo(a.createdAt)}</td>
-                </tr>
+                    <Mono className="!text-[10.5px]">{a.action}</Mono>
+                    {a.entityType ? <Mono className="!text-[10.5px]">{a.entityType}</Mono> : null}
+                  </div>
+                </div>
               ))}
-            </Table>
+            </div>
           ) : (
             <EmptyState title="No audit entries" />
           )}
