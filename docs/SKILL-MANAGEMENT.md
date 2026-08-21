@@ -106,6 +106,10 @@ agent
 The agent detail page renders this as a **Skill versions** column on every run. Because versions are
 immutable and never deleted, a run from last month still reports the exact instructions that produced it.
 
+Runs recorded before this feature stored a bare array of skill keys. They are read through
+`parseSkillUsage`, which normalises both shapes and reports the older ones as "version not recorded"
+rather than inferring a version they never captured.
+
 An assignment that **pins** a version ignores the active version entirely — an explicit operator decision,
 shown as `pinned` everywhere it applies.
 

@@ -59,7 +59,7 @@ An honest inventory. If something is not in the "implemented" list, assume it is
 
 ### Interface
 - 23 dashboard sections, all rendering live data
-- 121 passing tests (unit, integration, end-to-end, skill management)
+- 125 passing tests (unit, integration, end-to-end, skill management)
 
 ---
 
@@ -137,6 +137,11 @@ Future modules. Not started, by design.
 ---
 
 ## Known limitations
+
+**Runs from before skill versioning report no version.** Those runs recorded only skill keys, so the
+agent page shows "(version not recorded)" rather than inferring one. The migration did create a v1 from
+whatever each skill held at the time, but attributing it to an older run would be a guess presented as a
+record. Runs since the upgrade carry the exact version id.
 
 **SQLite concurrency.** Fine for local development and the test suite; it serialises writes. Move to
 Postgres for anything concurrent (see `docs/DEPLOYMENT.md`).

@@ -6,7 +6,7 @@ import { Badge, Card, EmptyState, Grid, KeyValue, Mono, PageHeader, StatusBadge,
 import { RunAgentButton } from "@/ui/run-agent-button";
 import { AgentSkillManager, type AgentSkillRow } from "@/app/(console)/agents/[key]/agent-skill-manager";
 import { roleHas } from "@/core/security/rbac";
-import { computeEffectiveTools } from "@/skills/types";
+import { computeEffectiveTools, parseSkillUsage } from "@/skills/types";
 import { formatDuration, formatMoney, formatNumber } from "@/core/utils/text";
 
 export const dynamic = "force-dynamic";
@@ -238,15 +238,33 @@ export default async function AgentDetailPage({ params }: { params: Promise<{ ke
                 <td className="text-[11px]">
                   {(() => {
                     // Recorded at execution time. Editing a skill afterwards
-                    // cannot change what this run reports.
-                    const used = readJson<{ skillKey: string; version: number; pinned?: boolean }[]>(r.skillsUsedJson, []);
+                    // cannot change what this run reports. Runs from before
+                    // versioning stored only skill keys, so their version is
+                    // reported as unrecorded rather than guessed.
+                    const used = parseSkillUsage(readJson<unknown>(r.skillsUsedJson, []));
                     if (!used.length) return <span className="text-[var(--color-ink-4)]">—</span>;
                     return (
                       <div className="flex flex-col gap-0.5">
-                        {used.map((s) => (
-                          <Mono key={s.skillKey} title={s.pinned ? "Assignment was pinned to this version" : "Followed the active version"}>
-                            {s.skillKey} v{s.version}
-                            {s.pinned ? " (pinned)" : ""}
+                        {used.map((s, i) => (
+                          <Mono
+                            key={`${s.skillKey}-${s.versionId ?? i}`}
+                            title={
+                              !s.versionRecorded
+                                ? "This run predates skill versioning, so no version was recorded."
+                                : s.pinned
+                                  ? "The assignment was pinned to this version."
+                                  : "Followed the skill's active version."
+                            }
+                          >
+                            {s.skillKey}{" "}
+                            {s.versionRecorded ? (
+                              <>
+                                v{s.version}
+                                {s.pinned ? " (pinned)" : ""}
+                              </>
+                            ) : (
+                              <span className="text-[var(--color-ink-4)]">(version not recorded)</span>
+                            )}
                           </Mono>
                         ))}
                       </div>

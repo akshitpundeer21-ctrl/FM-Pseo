@@ -158,6 +158,70 @@ export function toUsageRecord(skill: ResolvedSkill): SkillUsageRecord {
   };
 }
 
+/** Normalised view of what a run recorded, tolerant of the pre-versioning shape. */
+export interface SkillUsageView {
+  skillKey: string;
+  name: string | null;
+  /** Null for runs that executed before skill versioning existed. */
+  version: number | null;
+  versionId: string | null;
+  versionStatus: string | null;
+  pinned: boolean;
+  /** False when the run predates versioning, so no version can be reported. */
+  versionRecorded: boolean;
+}
+
+/**
+ * Read `AgentRun.skillsUsedJson`, which has had two shapes.
+ *
+ * Runs from before skill versioning stored a bare array of skill keys
+ * (`["orchestration_planning"]`); runs since store the full resolution record.
+ *
+ * A legacy row's version is reported as NOT RECORDED rather than guessed. The
+ * migration did create a v1 from whatever the skill held at the time, but that
+ * is an inference, not something the run captured - and inferring it would be
+ * exactly the kind of retro-fitted certainty this system refuses elsewhere.
+ */
+export function parseSkillUsage(raw: unknown): SkillUsageView[] {
+  if (!Array.isArray(raw)) return [];
+
+  return raw.flatMap<SkillUsageView>((entry) => {
+    if (typeof entry === "string") {
+      if (!entry.trim()) return [];
+      return [
+        {
+          skillKey: entry,
+          name: null,
+          version: null,
+          versionId: null,
+          versionStatus: null,
+          pinned: false,
+          versionRecorded: false,
+        },
+      ];
+    }
+
+    if (entry && typeof entry === "object") {
+      const e = entry as Partial<SkillUsageRecord>;
+      if (!e.skillKey) return [];
+      const hasVersion = typeof e.version === "number";
+      return [
+        {
+          skillKey: e.skillKey,
+          name: e.name ?? null,
+          version: hasVersion ? (e.version as number) : null,
+          versionId: e.versionId ?? null,
+          versionStatus: e.versionStatus ?? null,
+          pinned: Boolean(e.pinned),
+          versionRecorded: hasVersion,
+        },
+      ];
+    }
+
+    return [];
+  });
+}
+
 // --- tool scoping ----------------------------------------------------------
 
 export interface EffectiveToolScope {

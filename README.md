@@ -157,7 +157,7 @@ panel states plainly that there are no live results.
 | `npm run dev` | Start the app on http://localhost:3000 |
 | `npm run setup` | Generate the Prisma client, apply migrations, seed configuration |
 | `npm run seed` | Re-seed configuration (idempotent) |
-| `npm test` | Run all 121 tests |
+| `npm test` | Run all 125 tests |
 | `npm run e2e` | Drive the full pipeline from the terminal |
 | `npm run typecheck` | TypeScript, no emit |
 | `npm run build` / `npm start` | Production build and serve |

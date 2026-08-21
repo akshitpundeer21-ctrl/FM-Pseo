@@ -28,7 +28,7 @@ import {
   configFromVersion,
 } from "@/skills/service";
 import { resolveAgentSkills, renderSkills, loadSkillVersion } from "@/skills/registry";
-import { canTransition, computeEffectiveTools, EMPTY_CONFIG, type SkillVersionConfig } from "@/skills/types";
+import { canTransition, computeEffectiveTools, EMPTY_CONFIG, parseSkillUsage, type SkillVersionConfig } from "@/skills/types";
 import { validateSkillConfig, validateSkillInput } from "@/skills/validation";
 import { runSkillTest } from "@/skills/testing";
 import { describeAuditEvent } from "@/control-plane/audit-describe";
@@ -272,6 +272,45 @@ describe("tool permissions are never widened by a skill", () => {
     const finding = report.findings.find((f) => f.check === "tools_grantable");
     expect(finding?.passed).toBe(false);
     expect(finding?.message).toMatch(/cms\.publish/);
+  });
+});
+
+describe("run history is readable across both recorded shapes", () => {
+  it("reads the current object shape", () => {
+    const parsed = parseSkillUsage([
+      { skillId: "s1", skillKey: "internal_linking", name: "Internal Linking", versionId: "v1", version: 3, versionStatus: "ACTIVE", pinned: true },
+    ]);
+    expect(parsed).toHaveLength(1);
+    expect(parsed[0].version).toBe(3);
+    expect(parsed[0].pinned).toBe(true);
+    expect(parsed[0].versionRecorded).toBe(true);
+  });
+
+  it("reads the pre-versioning string shape without inventing a version", () => {
+    // Runs from before this feature stored only skill keys. Reporting v1 would
+    // be a guess dressed up as a record.
+    const parsed = parseSkillUsage(["orchestration_planning", "programmatic_seo"]);
+    expect(parsed).toHaveLength(2);
+    expect(parsed[0].skillKey).toBe("orchestration_planning");
+    expect(parsed[0].version).toBeNull();
+    expect(parsed[0].versionRecorded).toBe(false);
+  });
+
+  it("survives empty, malformed and mixed rows", () => {
+    expect(parseSkillUsage([])).toEqual([]);
+    expect(parseSkillUsage(null)).toEqual([]);
+    expect(parseSkillUsage("not-an-array")).toEqual([]);
+    expect(parseSkillUsage([null, 42, "", {}, { skillKey: "ok" }])).toHaveLength(1);
+    expect(parseSkillUsage(["legacy", { skillKey: "modern", version: 2 }])).toHaveLength(2);
+  });
+
+  it("gives every entry a stable, unique React key", () => {
+    // The agent page keys on skillKey + versionId; a legacy row has no version
+    // id, so the index has to disambiguate.
+    const parsed = parseSkillUsage(["a", "a", { skillKey: "b", versionId: "x", version: 1 }]);
+    const keys = parsed.map((s, i) => `${s.skillKey}-${s.versionId ?? i}`);
+    expect(new Set(keys).size).toBe(keys.length);
+    expect(keys.every((k) => !k.includes("undefined"))).toBe(true);
   });
 });
 
