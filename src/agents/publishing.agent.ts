@@ -94,6 +94,30 @@ export class PublishingAgent extends BaseAgent<PublishingInput, PublishingOutput
     const schemas = await prisma.schemaMarkup.findMany({ where: { pageId: version.pageId, validationStatus: "VALID" } });
     const jsonLd = schemas.map((s) => JSON.parse(s.jsonld));
 
+    // Site chrome comes from brand knowledge, not from the theme file, so an
+    // operator changing the brand changes what gets published.
+    const brandName = ctx.brand?.brandName ?? "FaresMatch";
+    const siteUrl = version.page.website?.domain
+      ? version.page.website.domain.startsWith("http")
+        ? version.page.website.domain
+        : `https://${version.page.website.domain}`
+      : env().APP_URL;
+
+    // Nav is operator-supplied. Nothing is invented: an unset or malformed
+    // SITE_NAV_JSON publishes a header with no nav rather than links to sections
+    // that do not exist.
+    const siteNav = readJson<{ label: string; href: string }[]>(env().SITE_NAV_JSON || "[]", []).filter(
+      (n) => n && typeof n.label === "string" && typeof n.href === "string",
+    );
+
+    // If any block on this version rests on reference (mock) data, the page says
+    // so at the top rather than presenting it as live.
+    const mockBlocks = await prisma.contentItem.count({ where: { pageVersionId: version.id, isMock: true } });
+    const dataNotice =
+      mockBlocks > 0
+        ? "Route facts on this page come from reference data, not a live provider feed. Fares and schedules are not shown because no live pricing source is connected."
+        : undefined;
+
     const result = await ctx.tool<{
       remoteId: string;
       remoteUrl: string;
@@ -110,6 +134,14 @@ export class PublishingAgent extends BaseAgent<PublishingInput, PublishingOutput
         html: version.html,
         markdown: version.markdown,
         jsonLd,
+        brand: {
+          name: brandName,
+          siteUrl,
+          nav: siteNav,
+          currentNav: siteNav.length ? "Flights" : undefined,
+          dataSourceNote: mockBlocks > 0 ? "Compiled from reference data. No live fare provider is connected." : undefined,
+        },
+        dataNotice,
       },
     });
 

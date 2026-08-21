@@ -30,7 +30,11 @@ An honest inventory. If something is not in the "implemented" list, assume it is
 - Full skill management: immutable versions, DRAFT/TESTING/READY/ACTIVE/ARCHIVED lifecycle, activation
   preflight (validation + automated tests), rollback, per-agent assignment with version pinning, a
   no-side-effects sandbox, a playground with version comparison, and skill-scoped tool narrowing
-- 17-component reusable library with required/optional data bindings and named generation slots
+- 21-component reusable library with required/optional data bindings and named generation slots
+- Branded published pages matching the FaresMatch reference design, with every provider-dependent block
+  (fare panel, fare options, price chart, destination highlights, photography) gated on real data — see
+  [PUBLISHED-PAGES.md](PUBLISHED-PAGES.md)
+- Publish-time link rebasing so internal links and structured data both resolve where the site is served
 - Template system with per-block conditions, overrides and content-source classification
 - Safe expression evaluator (purpose-built parser, never `eval`)
 - Dynamic Data Engine with provenance on every value and a hard rule against mock sources for
@@ -59,7 +63,7 @@ An honest inventory. If something is not in the "implemented" list, assume it is
 
 ### Interface
 - 23 dashboard sections, all rendering live data
-- 125 passing tests (unit, integration, end-to-end, skill management)
+- 139 passing tests (unit, integration, end-to-end, skill management, published pages)
 
 ---
 
@@ -171,6 +175,20 @@ are fabricated. Submit a goal to populate it.
 
 **Internal links need inventory.** The first page published has nothing to link to, so it will show a
 link-count warning until sibling pages exist. This is correct behaviour, not a bug.
+
+**Hub pages in the site architecture are not built yet.** Breadcrumbs and related-page chips point at
+`/flights`, `/flights/<origin>`, `/airports/<iata>` and `/destinations/<iata>`. With one page
+published those targets 404, and the post-publish crawl reports them as errors — the Internal Linking
+Agent's plan, correctly flagged by the Technical SEO Agent. The links are not removed, because removing
+them would hide the work the system is telling you to do.
+
+**Published pages carry no photography.** `hero_photo` and the image slot on `things_to_do` accept a
+URL plus a credit line, but nothing populates them. Without a licensed image source the hero falls back to
+a branded gradient band rather than hot-linking or inventing a photograph.
+
+**No site nav by default.** The published header renders the logo alone unless `SITE_NAV_JSON` supplies
+links, and the CTA and search dock render without a destination unless `SITE_SEARCH_URL` is set. The
+reference design's Flights/Hotels/Deals nav is not shipped as a default because those pages do not exist.
 
 **Single-node rate limiting.** The limiter is in-process. Multi-instance deployments need a shared store.
 

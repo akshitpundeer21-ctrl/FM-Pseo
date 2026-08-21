@@ -69,6 +69,20 @@ function humanDuration(minutes: number | null): string | null {
 // Writers - one per generation task
 // ---------------------------------------------------------------------------
 
+/** Shared body for the two airport-context slots, keyed by which end of the route it describes. */
+function airportContext(v: Vars, prefix: "origin" | "destination", verb: string): string {
+  const name = get(v, `${prefix}.airportName`, "This airport");
+  const city = get(v, `${prefix}.city`, "the city it serves");
+  const terminals = num(v, `${prefix}.terminals`);
+  const tz = get(v, `${prefix}.timezone`);
+  return joinSentences([
+    `${name} serves ${city}${terminals ? ` across ${terminals} terminal${terminals === 1 ? "" : "s"}` : ""}${
+      tz ? ` and runs on ${tz}` : ""
+    }.`,
+    `When ${verb}, confirm the terminal with the operating carrier on the day and allow extra time if the itinerary changes terminal.`,
+  ]);
+}
+
 const writers: Record<string, (v: Vars, seed: number) => string> = {
   route_overview(v, seed) {
     const oc = get(v, "origin.city", "the origin city");
@@ -263,6 +277,39 @@ const writers: Record<string, (v: Vars, seed: number) => string> = {
         seed,
       ),
     ]);
+  },
+
+  route_lede(v) {
+    // One sentence under the H1. Composed strictly from resolved route facts.
+    const oc = get(v, "origin.city", "the origin");
+    const dc = get(v, "destination.city", "the destination");
+    const dur = humanDuration(num(v, "route.typicalDurationMinutes"));
+    const nonstop = v["route.nonstopAvailable"] === true || get(v, "route.nonstopAvailable") === "true";
+    const dist = num(v, "route.distanceKm");
+    return joinSentences([
+      `${nonstop ? "Non-stop services operate" : "Most itineraries connect once"} between ${oc} and ${dc}${
+        dur ? `, with total travel time around ${dur}` : ""
+      }${dist ? ` over roughly ${Math.round(dist).toLocaleString("en-US")} km` : ""}.`,
+    ]);
+  },
+
+  route_airlines_context(v) {
+    const airlines = list(v, "route.airlines").map((a: any) => a?.name ?? a).filter(Boolean);
+    const oc = get(v, "origin.city", "the origin");
+    const dc = get(v, "destination.city", "the destination");
+    if (!airlines.length) return `Carrier data for ${oc} to ${dc} has not resolved for this page.`;
+    return joinSentences([
+      `${airlines.length === 1 ? "One carrier is" : `${airlines.length} carriers are`} recorded on ${oc} to ${dc}: ${airlines.join(", ")}.`,
+      `Cabin layout, routing and connection times differ between them, so compare the specific itinerary rather than the airline alone.`,
+    ]);
+  },
+
+  origin_airport_context(v) {
+    return airportContext(v, "origin", "departing");
+  },
+
+  destination_airport_context(v) {
+    return airportContext(v, "destination", "arriving");
   },
 
   meta_description(v) {

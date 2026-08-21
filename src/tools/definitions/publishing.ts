@@ -35,6 +35,19 @@ export const publishTool = registerTool({
       markdown: z.string().optional(),
       jsonLd: z.array(z.unknown()),
       canonical: z.string().optional(),
+      // Site chrome for the published document. Supplied by the Publishing
+      // Agent from brand knowledge so the theme is not hard-coded here.
+      brand: z
+        .object({
+          name: z.string(),
+          siteUrl: z.string(),
+          nav: z.array(z.object({ label: z.string(), href: z.string() })).optional(),
+          currentNav: z.string().optional(),
+          dataSourceNote: z.string().optional(),
+        })
+        .optional(),
+      // Banner text shown when the page leans on reference rather than live data.
+      dataNotice: z.string().optional(),
     }),
   }),
   outputSchema: z.object({

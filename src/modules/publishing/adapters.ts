@@ -17,6 +17,16 @@ import crypto from "node:crypto";
 import { env } from "@/core/config/env";
 import { IntegrationNotConfiguredError, PublishError } from "@/core/errors";
 import { scopedLogger } from "@/core/logging/logger";
+import {
+  applyBasePath,
+  rebaseJsonLd,
+  FONT_LINKS,
+  PAGE_CSS,
+  renderDataNotice,
+  renderFooter,
+  renderHeader,
+  type PageBrand,
+} from "@/modules/publishing/page-theme";
 
 const log = scopedLogger("publishing");
 
@@ -28,6 +38,10 @@ export interface PublishPayload {
   markdown?: string;
   jsonLd: unknown[];
   canonical?: string;
+  /** Site chrome + provenance for the published document. */
+  brand?: PageBrand;
+  /** Shown as a banner when the page relies on reference rather than live data. */
+  dataNotice?: string;
   meta?: Record<string, unknown>;
 }
 
@@ -77,7 +91,12 @@ export class LocalStaticAdapter implements PublishingAdapter {
     await fs.mkdir(path.dirname(file), { recursive: true });
 
     const canonical = payload.canonical ?? `${this.appUrl}/site/${sitePath(payload.url)}`;
-    const doc = renderDocument(payload, canonical);
+    // This adapter serves the site under /site, so root-relative links written
+    // by the components have to be rebased or every internal link 404s.
+    const doc = renderDocument(
+      { ...payload, brand: { name: "FaresMatch", siteUrl: this.appUrl, ...payload.brand, basePath: "/site" } },
+      canonical,
+    );
     await fs.writeFile(file, doc, "utf8");
 
     // Keep a JSON sidecar so rollback + diffing have structured input.
@@ -104,10 +123,29 @@ export class LocalStaticAdapter implements PublishingAdapter {
   }
 }
 
+/**
+ * Renders the complete published document: site chrome, brand theme, metadata,
+ * structured data and the composed page body.
+ */
 export function renderDocument(payload: PublishPayload, canonical: string): string {
-  const ld = payload.jsonLd
-    .map((obj) => `<script type="application/ld+json">${JSON.stringify(obj)}</script>`)
-    .join("\n    ");
+  const brand: PageBrand = payload.brand ?? {
+    name: "FaresMatch",
+    siteUrl: canonical.replace(/\/site\/.*$/, ""),
+  };
+
+  const ld = rebaseJsonLd(payload.jsonLd, brand.siteUrl, brand.basePath)
+    .map((obj) => `    <script type="application/ld+json">${JSON.stringify(obj)}</script>`)
+    .join("\n");
+
+  const body = applyBasePath(
+    `${renderDataNotice(payload.dataNotice)}
+${renderHeader(brand)}
+    <main class="wrap">
+${payload.html}
+    </main>
+${renderFooter(brand, payload.url)}`,
+    brand.basePath,
+  );
 
   return `<!doctype html>
 <html lang="en">
@@ -121,35 +159,13 @@ export function renderDocument(payload: PublishPayload, canonical: string): stri
     <meta property="og:title" content="${escapeAttr(payload.title)}" />
     <meta property="og:description" content="${escapeAttr(payload.metaDescription)}" />
     <meta property="og:type" content="website" />
-    ${ld}
-    <style>
-      :root { color-scheme: light dark; }
-      body { font: 16px/1.65 ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif; margin: 0; background: #fbfbfd; color: #16181d; }
-      main { max-width: 820px; margin: 0 auto; padding: 40px 24px 80px; }
-      h1 { font-size: 2rem; line-height: 1.2; margin: 0 0 8px; }
-      h2 { font-size: 1.35rem; margin: 40px 0 12px; }
-      h3 { font-size: 1.05rem; margin: 24px 0 8px; }
-      section { margin: 0 0 28px; }
-      table { border-collapse: collapse; width: 100%; margin: 12px 0; }
-      th, td { border: 1px solid #e2e4ea; padding: 8px 10px; text-align: left; font-size: 0.95rem; }
-      th { background: #f2f4f8; }
-      .fm-faq dt { font-weight: 600; margin-top: 14px; }
-      .fm-faq dd { margin: 4px 0 0; }
-      .fm-meta { color: #6a7080; font-size: .85rem; }
-      .fm-sources { border-top: 1px solid #e2e4ea; margin-top: 40px; padding-top: 16px; font-size: .85rem; color: #6a7080; }
-      .fm-cta { display: inline-block; margin-top: 8px; padding: 10px 18px; background: #1f5eff; color: #fff; border-radius: 8px; text-decoration: none; }
-      ul { padding-left: 20px; }
-      @media (prefers-color-scheme: dark) {
-        body { background: #0f1115; color: #e6e8ee; }
-        th, td { border-color: #262a33; } th { background: #171a21; }
-        .fm-sources, .fm-meta { color: #97a0b5; }
-      }
-    </style>
+    <meta property="og:url" content="${escapeAttr(canonical)}" />
+${FONT_LINKS}
+${ld}
+    <style>${PAGE_CSS}</style>
   </head>
   <body>
-    <main>
-${payload.html}
-    </main>
+${body}
   </body>
 </html>
 `;

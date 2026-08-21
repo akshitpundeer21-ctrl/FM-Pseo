@@ -106,6 +106,8 @@ These are enforced in code and covered by tests, not just documented:
 | Mock data is never presented as real | Every mock result carries `isMock`, and the UI renders a `MOCK` badge next to it |
 | Credentials never reach the browser or a prompt | AES-256-GCM at rest; resolved only inside the tool execution call stack |
 | No hard-coded 70/30 content ratio | Composition is a per-family **policy**, and the renderer measures the page's actual mix against it |
+| Published pages never invent imagery, attractions or nav links | `src/engine/templates/component-library.ts` — `hero_photo`, `things_to_do` and the site nav render only from supplied data |
+| Structured data always agrees with the links on the page | `rebaseJsonLd` and `applyBasePath` in `src/modules/publishing/page-theme.ts` run the same rule over both |
 
 ---
 
@@ -127,7 +129,7 @@ simply omitted.
 - The quality gate and all 11 of its checks
 - Internal link proposal and orphan detection
 - Structured data generation and validation
-- **Publishing** — writes a real HTML file, served at `/site/*`
+- **Publishing** — writes a real, brand-themed HTML file, served at `/site/*`
 - **Crawling** — real HTTP fetches with real parsing, respecting robots.txt
 - Sitemap and robots.txt generation
 - The whole dashboard
@@ -157,7 +159,7 @@ panel states plainly that there are no live results.
 | `npm run dev` | Start the app on http://localhost:3000 |
 | `npm run setup` | Generate the Prisma client, apply migrations, seed configuration |
 | `npm run seed` | Re-seed configuration (idempotent) |
-| `npm test` | Run all 125 tests |
+| `npm test` | Run all 139 tests |
 | `npm run e2e` | Drive the full pipeline from the terminal |
 | `npm run typecheck` | TypeScript, no emit |
 | `npm run build` / `npm start` | Production build and serve |
@@ -176,6 +178,7 @@ panel states plainly that there are no live results.
 | [docs/AGENTS.md](docs/AGENTS.md) | Every agent: role, skills, tools, capabilities, contracts |
 | [docs/SKILLS.md](docs/SKILLS.md) | The skill library and how skills compose with brand knowledge |
 | [docs/SKILL-MANAGEMENT.md](docs/SKILL-MANAGEMENT.md) | Versioning, activation, rollback, assignment, the sandbox and skill permissions |
+| [docs/PUBLISHED-PAGES.md](docs/PUBLISHED-PAGES.md) | What a published page looks like, which blocks need a provider, and link integrity |
 | [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md) | Every integration, the exact credentials it needs, and what breaks without it |
 | [docs/API.md](docs/API.md) | HTTP API reference |
 | [docs/TESTING.md](docs/TESTING.md) | Test strategy and how to run the suites |

@@ -80,6 +80,12 @@ const EnvSchema = z.object({
   AMADEUS_CLIENT_SECRET: str(""),
   DUFFEL_API_KEY: str(""),
 
+  // Absolute URL of the live flight search the published pages link to. Left
+  // empty in the demo: no search endpoint exists, so the CTA and search dock
+  // render as static panels rather than as links to a 404.
+  SITE_SEARCH_URL: str(""),
+  SITE_NAV_JSON: str(""),
+
   PUBLISH_ADAPTER: str("local_static"),
   PUBLISH_LOCAL_DIR: str("./published"),
   PUBLISH_WEBHOOK_URL: str(""),

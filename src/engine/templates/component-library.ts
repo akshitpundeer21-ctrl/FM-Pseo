@@ -11,11 +11,15 @@
  * HTML + plain text. It never fetches anything itself, which is what keeps
  * presentation separate from the Dynamic Data Engine.
  *
+ * Markup targets the published page theme in src/modules/publishing/page-theme.ts,
+ * so the visual system lives in one place rather than in every component.
+ *
  * Updating a component's version propagates to pages generated afterwards when
  * the template has `propagateUpdates` enabled.
  */
 import { escapeHtml } from "@/core/utils/text";
 import { lookup } from "@/engine/data/types";
+import { card, cardGrid, chips, lineChart, prose, section, type CardSpec } from "@/modules/publishing/page-theme";
 import type { ContentSource } from "@/core/types/enums";
 
 export interface AiSlot {
@@ -45,6 +49,12 @@ export interface RenderInput {
     faqs?: { question: string; answer: string }[];
     evidence?: { claim: string; source: string; retrievedAt: string; isMock: boolean }[];
     lastUpdated?: string;
+    /**
+     * Absolute URL of the live search this site sends travellers to. Undefined
+     * means no search destination is configured, and the components that would
+     * link to one render without a link rather than pointing at a dead URL.
+     */
+    searchUrl?: string;
   };
 }
 
@@ -88,31 +98,18 @@ function humanDuration(minutes: number | null): string | null {
   return m ? `${h}h ${m}m` : `${h}h`;
 }
 
-function section(id: string, heading: string | null, body: string): string {
-  return `      <section id="${id}">\n${heading ? `        <h2>${escapeHtml(heading)}</h2>\n` : ""}${body}\n      </section>`;
+function money(value: number, currency?: string): string {
+  const symbol = currency === "USD" ? "$" : currency === "EUR" ? "€" : currency === "GBP" ? "£" : "";
+  const formatted = value.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return symbol ? `${symbol}${formatted}` : `${formatted}${currency ? ` ${currency}` : ""}`;
 }
 
-function paragraphs(text: string): string {
-  return text
-    .split(/\n{2,}/)
-    .map((p) => `        <p>${escapeHtml(p.trim())}</p>`)
-    .join("\n");
-}
-
-function bullets(items: string[]): string {
-  return `        <ul>\n${items.map((i) => `          <li>${escapeHtml(i)}</li>`).join("\n")}\n        </ul>`;
-}
-
-function table(rows: { label: string; value: string; note?: string }[]): string {
-  const body = rows
-    .map(
-      (r) =>
-        `            <tr><th scope="row">${escapeHtml(r.label)}</th><td>${escapeHtml(r.value)}${
-          r.note ? ` <span class="fm-meta">${escapeHtml(r.note)}</span>` : ""
-        }</td></tr>`,
-    )
-    .join("\n");
-  return `        <table>\n          <tbody>\n${body}\n          </tbody>\n        </table>`;
+function airlineList(values: Record<string, unknown>): { iata?: string; name: string }[] {
+  const raw = lookup(values, "route.airlines");
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .map((a: any) => (typeof a === "string" ? { name: a } : { iata: a?.iata, name: a?.name ?? String(a) }))
+    .filter((a) => a.name);
 }
 
 function stripTags(html: string): string {
@@ -121,167 +118,222 @@ function stripTags(html: string): string {
 
 // --- components ------------------------------------------------------------
 
-const hero: ComponentDefinition = {
-  key: "hero",
-  name: "Hero",
+const breadcrumb: ComponentDefinition = {
+  key: "breadcrumb",
+  name: "Breadcrumb",
   category: "LAYOUT",
-  description: "Page H1, one-line positioning and the primary CTA.",
-  version: 1,
-  contentSource: "HYBRID",
-  requiredBindings: ["origin.city", "destination.city"],
-  optionalBindings: ["route.typicalDurationMinutes", "route.nonstopAvailable"],
+  description: "Hierarchy trail; also emitted as BreadcrumbList structured data.",
+  version: 2,
+  contentSource: "TEMPLATE",
+  requiredBindings: [],
+  optionalBindings: [],
   aiSlots: [],
-  defaults: { ctaLabel: "Search live fares", ctaHref: "/search" },
-  render({ values, props, page }) {
-    const o = S(lookup(values, "origin.city"));
-    const d = S(lookup(values, "destination.city"));
-    const dur = humanDuration(N(lookup(values, "route.typicalDurationMinutes")));
-    const nonstop = lookup(values, "route.nonstopAvailable") === true;
+  defaults: {},
+  render({ page }) {
+    const crumbs = page.breadcrumbs ?? [];
+    if (!crumbs.length) return { html: "", text: "", usedPaths: [], skippedReason: "No breadcrumb trail supplied" };
 
-    const subtitleParts = [
-      nonstop ? "Non-stop options available" : "Usually flown with one stop",
-      dur ? `around ${dur} total travel time` : null,
-    ].filter(Boolean);
-
-    const html = `      <header class="fm-hero">
-        <h1>${escapeHtml(`${o} to ${d} flights`)}</h1>
-        <p class="fm-lede">${escapeHtml(subtitleParts.join(" · "))}</p>
-        <a class="fm-cta" href="${escapeHtml(S(props.ctaHref, "/search"))}?from=${escapeHtml(S(lookup(values, "route.origin")))}&to=${escapeHtml(S(lookup(values, "route.destination")))}">${escapeHtml(S(props.ctaLabel, "Search live fares"))}</a>
-      </header>`;
+    const items = crumbs
+      .map((c, i) =>
+        i === crumbs.length - 1
+          ? `<span aria-current="page">${escapeHtml(c.label)}</span>`
+          : `<a href="${escapeHtml(c.url)}">${escapeHtml(c.label)}</a>`,
+      )
+      .join(" › ");
 
     return {
-      html,
-      text: `${o} to ${d} flights. ${subtitleParts.join(", ")}.`,
-      usedPaths: ["origin.city", "destination.city", "route.typicalDurationMinutes", "route.nonstopAvailable"],
+      html: `      <nav class="crumb" aria-label="Breadcrumb">${items}</nav>`,
+      text: crumbs.map((c) => c.label).join(" > "),
+      usedPaths: [],
     };
   },
 };
 
 const searchBox: ComponentDefinition = {
   key: "search_box",
-  name: "Flight search box",
+  name: "Flight search dock",
   category: "INTERACTIVE",
-  description: "Pre-filled flight search form linking the SEO page to the search experience.",
-  version: 1,
+  description: "Pre-filled search dock linking the SEO page to the live search experience.",
+  version: 2,
   contentSource: "TEMPLATE",
   requiredBindings: ["route.origin", "route.destination"],
-  optionalBindings: [],
+  optionalBindings: ["origin.city", "destination.city"],
   aiSlots: [],
-  defaults: { cabins: ["ECONOMY", "PREMIUM_ECONOMY", "BUSINESS"] },
-  render({ values, props }) {
+  defaults: { buttonLabel: "Search" },
+  render({ values, props, page }) {
     const o = S(lookup(values, "route.origin"));
     const d = S(lookup(values, "route.destination"));
-    const cabins = (props.cabins as string[]) ?? ["ECONOMY"];
-    const html = `      <section id="search" class="fm-search">
-        <form method="get" action="/search">
-          <input type="hidden" name="from" value="${escapeHtml(o)}" />
-          <input type="hidden" name="to" value="${escapeHtml(d)}" />
-          <fieldset>
-            <legend>Search ${escapeHtml(o)} → ${escapeHtml(d)}</legend>
-            <label>Departure <input type="date" name="depart" /></label>
-            <label>Return <input type="date" name="return" /></label>
-            <label>Passengers <input type="number" name="passengers" min="1" max="9" value="1" /></label>
-            <label>Cabin
-              <select name="cabin">${cabins.map((c) => `<option value="${escapeHtml(c)}">${escapeHtml(c.replace(/_/g, " ").toLowerCase())}</option>`).join("")}</select>
-            </label>
-            <button type="submit">Search flights</button>
-          </fieldset>
-        </form>
-      </section>`;
-    return { html, text: `Flight search: ${o} to ${d}.`, usedPaths: ["route.origin", "route.destination"] };
+    const oCity = S(lookup(values, "origin.city"), o);
+    const dCity = S(lookup(values, "destination.city"), d);
+
+    // With no configured search destination the dock is a summary panel, not a
+    // form that posts nowhere.
+    const action = S(props.action) || page.searchUrl || "";
+    const open = action
+      ? `      <form class="search-dock" method="get" action="${escapeHtml(action)}">
+        <input type="hidden" name="from" value="${escapeHtml(o)}" />
+        <input type="hidden" name="to" value="${escapeHtml(d)}" />`
+      : `      <div class="search-dock">`;
+
+    const html = `${open}
+        <div class="dock-field">
+          <div class="dock-label"><span class="msi">flight_takeoff</span>Leaving from</div>
+          <div class="dock-value">${escapeHtml(`${oCity} (${o})`)}</div>
+        </div>
+        <div class="dock-field">
+          <div class="dock-label"><span class="msi">flight_land</span>Going to</div>
+          <div class="dock-value">${escapeHtml(`${dCity} (${d})`)}</div>
+        </div>
+        <div class="dock-field">
+          <div class="dock-label"><span class="msi">calendar_today</span>Travel dates</div>
+          <div class="dock-value">${
+            action ? `<input type="date" name="depart" aria-label="Departure date" />` : "Your dates"
+          }</div>
+        </div>
+${
+  action
+    ? `        <button class="dock-search" type="submit">${escapeHtml(S(props.buttonLabel, "Search"))}</button>
+      </form>`
+    : `      </div>`
+}`;
+
+    return { html, text: `Search ${oCity} to ${dCity}.`, usedPaths: ["route.origin", "route.destination"] };
   },
 };
 
-const routeSummary: ComponentDefinition = {
-  key: "route_summary",
-  name: "Route summary table",
-  category: "DATA",
-  description: "Key route facts as an extractable table (CFA-friendly), with sources.",
-  version: 1,
-  contentSource: "DYNAMIC",
-  requiredBindings: ["origin.airportName", "destination.airportName"],
-  optionalBindings: ["route.distanceKm", "route.typicalDurationMinutes", "route.typicalStops", "route.airlines"],
-  aiSlots: [],
-  defaults: { heading: "Route at a glance" },
-  render({ values, props }) {
-    const rows: { label: string; value: string; note?: string }[] = [];
-    const used: string[] = [];
-
-    const oName = S(lookup(values, "origin.airportName"));
-    const oIata = S(lookup(values, "origin.iata"));
-    const dName = S(lookup(values, "destination.airportName"));
-    const dIata = S(lookup(values, "destination.iata"));
-
-    if (oName) {
-      rows.push({ label: "Departs from", value: oIata ? `${oName} (${oIata})` : oName });
-      used.push("origin.airportName", "origin.iata");
-    }
-    if (dName) {
-      rows.push({ label: "Arrives at", value: dIata ? `${dName} (${dIata})` : dName });
-      used.push("destination.airportName", "destination.iata");
-    }
-
-    const dist = N(lookup(values, "route.distanceKm"));
-    if (dist) {
-      rows.push({ label: "Distance", value: `${dist.toLocaleString("en-US")} km`, note: "great-circle" });
-      used.push("route.distanceKm");
-    }
-
+const hero: ComponentDefinition = {
+  key: "hero",
+  name: "Hero",
+  category: "LAYOUT",
+  description: "Page H1 and the one-paragraph lede that frames the route.",
+  version: 2,
+  contentSource: "HYBRID",
+  requiredBindings: ["origin.city", "destination.city"],
+  optionalBindings: ["route.typicalDurationMinutes", "route.nonstopAvailable", "route.distanceKm"],
+  aiSlots: [
+    {
+      name: "lede",
+      task: "route_lede",
+      instruction:
+        "Write ONE sentence (max 40 words) that tells a traveller the single most useful thing about this route from the supplied data. No prices, no schedules, no superlatives.",
+      maxTokens: 120,
+      complexity: 0.3,
+      optional: true,
+    },
+  ],
+  defaults: { titlePattern: "Cheap Flights from {origin} to {destination}" },
+  render({ values, slots, props }) {
+    const o = S(lookup(values, "origin.city"));
+    const d = S(lookup(values, "destination.city"));
     const dur = humanDuration(N(lookup(values, "route.typicalDurationMinutes")));
-    if (dur) {
-      rows.push({ label: "Typical total travel time", value: dur, note: "estimated, not a schedule" });
-      used.push("route.typicalDurationMinutes");
-    }
+    const nonstop = lookup(values, "route.nonstopAvailable") === true;
 
-    const stops = N(lookup(values, "route.typicalStops"));
-    if (stops !== null) {
-      rows.push({ label: "Typical stops", value: stops === 0 ? "Non-stop available" : `${stops} stop${stops === 1 ? "" : "s"}` });
-      used.push("route.typicalStops");
-    }
+    const heading = S(props.titlePattern, "Cheap Flights from {origin} to {destination}")
+      .replace("{origin}", o)
+      .replace("{destination}", d);
 
-    const airlines = lookup(values, "route.airlines");
-    if (Array.isArray(airlines) && airlines.length) {
-      rows.push({ label: "Carriers seen on this route", value: airlines.map((a: any) => a.name ?? a).join(", ") });
-      used.push("route.airlines");
-    }
+    const generated = slots.lede?.trim();
+    const fallback = [
+      nonstop ? "Non-stop services operate on this route" : "Most itineraries on this route connect once",
+      dur ? `typical total travel time is around ${dur}` : null,
+    ]
+      .filter(Boolean)
+      .join(", ");
 
-    if (!rows.length) return { html: "", text: "", usedPaths: [], skippedReason: "No route data resolved" };
+    const lede = generated || `${fallback}. Compare live results for your dates before booking.`;
 
     return {
-      html: section("route-summary", S(props.heading, "Route at a glance"), table(rows)),
-      text: rows.map((r) => `${r.label}: ${r.value}`).join(". "),
-      usedPaths: used,
+      html: `      <h1>${escapeHtml(heading)}</h1>\n      <p class="lede">${escapeHtml(lede)}</p>`,
+      text: `${heading}. ${lede}`,
+      usedPaths: ["origin.city", "destination.city", "route.typicalDurationMinutes", "route.nonstopAvailable"],
     };
   },
 };
 
-const routeOverview: ComponentDefinition = {
-  key: "route_overview",
-  name: "Route overview",
-  category: "CONTENT",
-  description: "Generated prose that explains the route using only resolved data.",
+const heroPhoto: ComponentDefinition = {
+  key: "hero_photo",
+  name: "Hero image",
+  category: "LAYOUT",
+  description:
+    "Destination photograph with attribution. Falls back to a branded band when no licensed image is supplied - it never invents imagery.",
   version: 1,
-  contentSource: "AI",
-  requiredBindings: ["origin.city", "destination.city"],
-  optionalBindings: ["route.typicalDurationMinutes", "route.airlines", "route.distanceKm"],
-  aiSlots: [
-    {
-      name: "overview",
-      task: "route_overview",
-      instruction:
-        "Write 4-6 sentences introducing this route for someone comparing options. Use only the facts in the data context. Do not state prices, schedules or policies.",
-      maxTokens: 420,
-      complexity: 0.5,
-    },
-  ],
-  defaults: { heading: "About this route" },
-  render({ slots, props, values }) {
-    const text = slots.overview?.trim();
-    if (!text) return { html: "", text: "", usedPaths: [], skippedReason: "Overview slot was not generated" };
+  contentSource: "TEMPLATE",
+  requiredBindings: [],
+  optionalBindings: ["destination.imageUrl", "destination.imageCredit", "destination.city"],
+  aiSlots: [],
+  defaults: {},
+  render({ values }) {
+    const src = S(lookup(values, "destination.imageUrl"));
+    const city = S(lookup(values, "destination.city"), "the destination");
+    const credit = S(lookup(values, "destination.imageCredit"));
+
+    if (src) {
+      return {
+        html: `      <div class="hero-photo"><div class="img-wrap"><img src="${escapeHtml(src)}" alt="${escapeHtml(city)}" loading="lazy">${
+          credit ? `<div class="img-credit">${escapeHtml(credit)}</div>` : ""
+        }</div></div>`,
+        text: "",
+        usedPaths: ["destination.imageUrl"],
+      };
+    }
+
+    const o = S(lookup(values, "origin.city"));
     return {
-      html: section("overview", S(props.heading, "About this route"), paragraphs(text)),
-      text,
-      usedPaths: ["origin.city", "destination.city", "route.typicalDurationMinutes", "route.airlines"],
+      html: `      <div class="hero-band" role="presentation"><span class="msi">flight</span><span>${escapeHtml(
+        o && city ? `${o} → ${city}` : city,
+      )}</span></div>`,
+      text: "",
+      usedPaths: [],
+    };
+  },
+};
+
+const fareHero: ComponentDefinition = {
+  key: "fare_hero",
+  name: "Lowest fare panel",
+  category: "DATA",
+  description:
+    "Headline fare with supporting stats. Requires a live pricing source - without one it does not render, and the page says nothing about fares.",
+  version: 1,
+  contentSource: "DYNAMIC",
+  requiredBindings: ["offers.cheapestPrice"],
+  optionalBindings: ["offers.count", "offers.currency", "offers.retrievedAt", "route.typicalDurationMinutes", "route.airlines"],
+  aiSlots: [],
+  defaults: { label: "Lowest fare found" },
+  render({ values, props }) {
+    const price = N(lookup(values, "offers.cheapestPrice"));
+    if (price === null) {
+      return { html: "", text: "", usedPaths: [], skippedReason: "No live pricing source is connected" };
+    }
+
+    const currency = S(lookup(values, "offers.currency"), "USD");
+    const count = N(lookup(values, "offers.count"));
+    const dur = N(lookup(values, "route.typicalDurationMinutes"));
+    const carriers = airlineList(values);
+    const source = S(lookup(values, "offers.sourceName"), "the connected fare provider");
+    const retrieved = S(lookup(values, "offers.retrievedAt"));
+
+    const stats = [
+      dur ? { v: `${dur} min`, k: "Avg duration" } : null,
+      count !== null ? { v: String(count), k: "Offers found" } : null,
+      carriers.length ? { v: String(carriers.length), k: "Airlines" } : null,
+    ].filter(Boolean) as { v: string; k: string }[];
+
+    const html = `      <div class="fare-hero">
+        <div>
+          <div class="label">${escapeHtml(S(props.label, "Lowest fare found"))}</div>
+          <div class="price">${escapeHtml(money(price, currency))}</div>
+          <div class="source">via ${escapeHtml(source)}${retrieved ? ` · checked ${escapeHtml(retrieved.slice(0, 16).replace("T", " "))}` : ""}</div>
+        </div>
+        <div class="stats">${stats
+          .map((s) => `<div class="stat"><div class="v">${escapeHtml(s.v)}</div><div class="k">${escapeHtml(s.k)}</div></div>`)
+          .join("")}</div>
+      </div>`;
+
+    return {
+      html,
+      text: `${props.label}: ${money(price, currency)}. ${stats.map((s) => `${s.k} ${s.v}`).join(". ")}`,
+      usedPaths: ["offers.cheapestPrice", "offers.count", "route.typicalDurationMinutes"],
     };
   },
 };
@@ -291,7 +343,7 @@ const answerBlock: ComponentDefinition = {
   name: "Direct answer block",
   category: "AEO",
   description: "A standalone 35-70 word answer placed high on the page for answer engines.",
-  version: 1,
+  version: 2,
   contentSource: "AI",
   requiredBindings: ["origin.city", "destination.city"],
   optionalBindings: ["route.typicalDurationMinutes", "route.typicalStops", "route.airlines"],
@@ -310,24 +362,129 @@ const answerBlock: ComponentDefinition = {
     const text = slots.answer?.trim();
     if (!text) return { html: "", text: "", usedPaths: [], skippedReason: "Answer slot was not generated" };
     return {
-      html: `      <section id="answer" class="fm-answer">\n        <p><strong>${escapeHtml(text)}</strong></p>\n      </section>`,
+      html: `      <div class="answer" id="answer"><p>${escapeHtml(text)}</p></div>`,
       text,
       usedPaths: ["route.typicalDurationMinutes", "route.typicalStops", "route.airlines"],
     };
   },
 };
 
+const routeSummary: ComponentDefinition = {
+  key: "route_summary",
+  name: "Route at a glance",
+  category: "DATA",
+  description: "Key route facts as extractable cards (CFA-friendly), each traceable to a source.",
+  version: 2,
+  contentSource: "DYNAMIC",
+  requiredBindings: ["origin.airportName", "destination.airportName"],
+  optionalBindings: ["route.distanceKm", "route.typicalDurationMinutes", "route.typicalStops", "route.airlines"],
+  aiSlots: [],
+  defaults: { heading: "Route at a glance", subtitle: "The facts this page is built on, with sources listed at the foot." },
+  render({ values, props }) {
+    const used: string[] = [];
+    const cards: CardSpec[] = [];
+
+    const oName = S(lookup(values, "origin.airportName"));
+    const oIata = S(lookup(values, "origin.iata"));
+    const dName = S(lookup(values, "destination.airportName"));
+    const dIata = S(lookup(values, "destination.iata"));
+
+    if (oName) {
+      cards.push({
+        tag: "Departure",
+        title: oIata ? `${oName} (${oIata})` : oName,
+        meta: [{ k: "Serves", v: S(lookup(values, "origin.city")) }].filter((m) => m.v),
+      });
+      used.push("origin.airportName", "origin.iata", "origin.city");
+    }
+    if (dName) {
+      cards.push({
+        tag: "Arrival",
+        title: dIata ? `${dName} (${dIata})` : dName,
+        meta: [{ k: "Serves", v: S(lookup(values, "destination.city")) }].filter((m) => m.v),
+      });
+      used.push("destination.airportName", "destination.iata", "destination.city");
+    }
+
+    const dist = N(lookup(values, "route.distanceKm"));
+    const dur = humanDuration(N(lookup(values, "route.typicalDurationMinutes")));
+    const stops = N(lookup(values, "route.typicalStops"));
+    const carriers = airlineList(values);
+
+    const facts: { k: string; v: string }[] = [];
+    if (dist) {
+      facts.push({ k: "Distance", v: `${dist.toLocaleString("en-US")} km` });
+      used.push("route.distanceKm");
+    }
+    if (dur) {
+      facts.push({ k: "Typical travel time", v: dur });
+      used.push("route.typicalDurationMinutes");
+    }
+    if (stops !== null) {
+      facts.push({ k: "Typical stops", v: stops === 0 ? "Non-stop available" : `${stops} stop${stops === 1 ? "" : "s"}` });
+      used.push("route.typicalStops");
+    }
+    if (carriers.length) {
+      facts.push({ k: "Carriers seen", v: String(carriers.length) });
+      used.push("route.airlines");
+    }
+
+    if (facts.length) {
+      cards.push({ tag: "Journey", title: "Flight facts", meta: facts });
+    }
+
+    if (!cards.length) return { html: "", text: "", usedPaths: [], skippedReason: "No route data resolved" };
+
+    return {
+      html: section("route-summary", S(props.heading, "Route at a glance"), S(props.subtitle) || null, cardGrid(cards.map(card))),
+      text: `${cards.map((c) => `${c.title}: ${(c.meta ?? []).map((m) => `${m.k} ${m.v}`).join(", ")}`).join(". ")}.`,
+      usedPaths: used,
+    };
+  },
+};
+
+const routeOverview: ComponentDefinition = {
+  key: "route_overview",
+  name: "Route overview",
+  category: "CONTENT",
+  description: "Generated prose that explains the route using only resolved data.",
+  version: 2,
+  contentSource: "AI",
+  requiredBindings: ["origin.city", "destination.city"],
+  optionalBindings: ["route.typicalDurationMinutes", "route.airlines", "route.distanceKm"],
+  aiSlots: [
+    {
+      name: "overview",
+      task: "route_overview",
+      instruction:
+        "Write 4-6 sentences introducing this route for someone comparing options. Use only the facts in the data context. Do not state prices, schedules or policies.",
+      maxTokens: 420,
+      complexity: 0.5,
+    },
+  ],
+  defaults: { heading: "About this route" },
+  render({ slots, props }) {
+    const text = slots.overview?.trim();
+    if (!text) return { html: "", text: "", usedPaths: [], skippedReason: "Overview slot was not generated" };
+    return {
+      html: section("overview", S(props.heading, "About this route"), null, prose(text)),
+      text,
+      usedPaths: ["origin.city", "destination.city", "route.typicalDurationMinutes", "route.airlines"],
+    };
+  },
+};
+
 const flightOptions: ComponentDefinition = {
   key: "flight_options",
-  name: "Flight options",
+  name: "Fare options",
   category: "DATA",
-  description: "Live priced offers. Renders only when a credentialed live pricing source returned data.",
-  version: 1,
+  description: "Live priced offers as cards. Renders only when a credentialed pricing source returned data.",
+  version: 2,
   contentSource: "DYNAMIC",
   requiredBindings: ["offers.items"],
-  optionalBindings: ["offers.cheapestPrice", "offers.cheapestCarrier"],
+  optionalBindings: ["offers.currency"],
   aiSlots: [],
-  defaults: { heading: "Current flight options", limit: 5 },
+  defaults: { heading: "Fare options we found", subtitle: "From the latest live search on this route.", limit: 6 },
   render({ values, props }) {
     const items = lookup(values, "offers.items");
     if (!Array.isArray(items) || !items.length) {
@@ -335,19 +492,75 @@ const flightOptions: ComponentDefinition = {
         html: "",
         text: "",
         usedPaths: [],
-        skippedReason: "No live pricing source is connected, so no prices are shown. Connect Amadeus or Duffel to enable this block.",
+        skippedReason: "No live pricing source is connected, so no fares are shown. Connect Amadeus or Duffel to enable this block.",
       };
     }
-    const limit = N(props.limit) ?? 5;
-    const rows = items.slice(0, limit).map((o: any) => ({
-      label: `${o.carrier ?? "Carrier"} · ${o.stops === 0 ? "non-stop" : `${o.stops} stop${o.stops === 1 ? "" : "s"}`}`,
-      value: `${o.priceTotal} ${o.currency ?? ""}`.trim(),
-      note: o.duration ?? undefined,
-    }));
+
+    const currency = S(lookup(values, "offers.currency"), "USD");
+    const limit = N(props.limit) ?? 6;
+    const cards = items.slice(0, limit).map((o: any) =>
+      card({
+        tag: o.carrier ? String(o.carrier) : undefined,
+        title: o.stops === 0 ? "Non-stop" : `${o.stops} stop${o.stops === 1 ? "" : "s"}`,
+        meta: [
+          { k: "From", v: money(Number(o.priceTotal), o.currency ?? currency) },
+          ...(o.duration ? [{ k: "Duration", v: String(o.duration) }] : []),
+        ],
+      }),
+    );
+
     return {
-      html: section("flight-options", S(props.heading, "Current flight options"), table(rows)),
-      text: rows.map((r) => `${r.label}: ${r.value}`).join(". "),
+      html: section("fares", S(props.heading, "Fare options we found"), S(props.subtitle) || null, cardGrid(cards)),
+      text: items
+        .slice(0, limit)
+        .map((o: any) => `${o.carrier ?? "carrier"} ${money(Number(o.priceTotal), o.currency ?? currency)}`)
+        .join(". "),
       usedPaths: ["offers.items"],
+    };
+  },
+};
+
+const priceByWeek: ComponentDefinition = {
+  key: "price_by_week",
+  name: "Price by week",
+  category: "DATA",
+  description:
+    "Swept fare history as a chart. Requires a provider sweep across departure dates - it is never a forecast and never rendered without real points.",
+  version: 1,
+  contentSource: "DYNAMIC",
+  requiredBindings: ["offers.weeklySeries"],
+  optionalBindings: ["offers.currency"],
+  aiSlots: [],
+  defaults: { heading: "Price by week", subtitle: "Swept across departure dates. Observed fares, not a forecast." },
+  render({ values, props }) {
+    const series = lookup(values, "offers.weeklySeries");
+    if (!Array.isArray(series) || series.length < 2) {
+      return { html: "", text: "", usedPaths: [], skippedReason: "No swept fare series available for this route" };
+    }
+
+    const currency = S(lookup(values, "offers.currency"), "USD");
+    const points = series
+      .map((p: any) => ({ label: String(p.label ?? p.date ?? ""), value: Number(p.price ?? p.value) }))
+      .filter((p) => Number.isFinite(p.value));
+    if (points.length < 2) {
+      return { html: "", text: "", usedPaths: [], skippedReason: "Swept series had too few usable points" };
+    }
+
+    const cheapest = points.reduce((a, b) => (b.value < a.value ? b : a));
+    const priciest = points.reduce((a, b) => (b.value > a.value ? b : a));
+
+    const body = `        <div class="chart-card">
+${lineChart(points, { format: (n) => money(n, currency) })}
+          <div class="chart-legend">
+            <span><span class="dot" style="background:var(--cta)"></span>Cheapest — ${escapeHtml(cheapest.label)}, ${escapeHtml(money(cheapest.value, currency))}</span>
+            <span><span class="dot" style="background:var(--warn)"></span>Priciest — ${escapeHtml(priciest.label)}, ${escapeHtml(money(priciest.value, currency))}</span>
+          </div>
+        </div>`;
+
+    return {
+      html: section("price-by-week", S(props.heading, "Price by week"), S(props.subtitle) || null, body),
+      text: `Across ${points.length} sampled weeks the lowest fare ranged from ${money(cheapest.value, currency)} to ${money(priciest.value, currency)}.`,
+      usedPaths: ["offers.weeklySeries"],
     };
   },
 };
@@ -356,41 +569,34 @@ const airlineCards: ComponentDefinition = {
   key: "airline_cards",
   name: "Airlines on this route",
   category: "DATA",
-  description: "One card per carrier with alliance and hub, plus generated context.",
-  version: 1,
+  description: "Carriers seen on the route, as chips, with generated context on what differs between them.",
+  version: 2,
   contentSource: "HYBRID",
   requiredBindings: ["route.airlines"],
   optionalBindings: [],
   aiSlots: [
     {
       name: "context",
-      task: "airline_context",
+      task: "route_airlines_context",
       instruction: "Two sentences on what differs between carriers on this route. No policy or baggage specifics.",
       maxTokens: 200,
       complexity: 0.35,
       optional: true,
     },
   ],
-  defaults: { heading: "Airlines flying this route" },
+  defaults: { heading: "Airlines on this route", subtitle: "Carriers observed on this city pair." },
   render({ values, slots, props }) {
-    const airlines = lookup(values, "route.airlines");
-    if (!Array.isArray(airlines) || !airlines.length) {
-      return { html: "", text: "", usedPaths: [], skippedReason: "No carrier data resolved" };
-    }
-    const cards = airlines
-      .map((a: any) => {
-        const bits = [a.alliance && a.alliance !== "None" ? a.alliance : null].filter(Boolean);
-        return `          <li><strong>${escapeHtml(a.name ?? String(a))}</strong>${
-          a.iata ? ` <span class="fm-meta">(${escapeHtml(a.iata)})</span>` : ""
-        }${bits.length ? ` — ${escapeHtml(bits.join(", "))}` : ""}</li>`;
-      })
-      .join("\n");
+    const carriers = airlineList(values);
+    if (!carriers.length) return { html: "", text: "", usedPaths: [], skippedReason: "No carrier data resolved" };
 
     const context = slots.context?.trim();
-    const body = `        <ul>\n${cards}\n        </ul>${context ? `\n${paragraphs(context)}` : ""}`;
+    const body = `${chips(carriers.map((a) => ({ label: a.iata ? `${a.name} (${a.iata})` : a.name })))}${
+      context ? `\n${prose(context)}` : ""
+    }`;
+
     return {
-      html: section("airlines", S(props.heading, "Airlines flying this route"), body),
-      text: `${airlines.map((a: any) => a.name ?? a).join(", ")}. ${context ?? ""}`.trim(),
+      html: section("airlines", S(props.heading, "Airlines on this route"), S(props.subtitle) || null, body),
+      text: `${carriers.map((a) => a.name).join(", ")}. ${context ?? ""}`.trim(),
       usedPaths: ["route.airlines"],
     };
   },
@@ -398,17 +604,17 @@ const airlineCards: ComponentDefinition = {
 
 const airportCards: ComponentDefinition = {
   key: "airport_cards",
-  name: "Airport information",
+  name: "Airport guide",
   category: "DATA",
-  description: "Origin and destination airport details with generated practical context.",
-  version: 1,
+  description: "What to know at each end of the route, with generated practical context.",
+  version: 2,
   contentSource: "HYBRID",
   requiredBindings: ["origin.airportName", "destination.airportName"],
   optionalBindings: ["origin.terminals", "destination.terminals", "origin.timezone", "destination.timezone"],
   aiSlots: [
     {
       name: "originContext",
-      task: "airport_context",
+      task: "origin_airport_context",
       instruction: "Two practical sentences about departing from this airport.",
       maxTokens: 180,
       complexity: 0.3,
@@ -416,59 +622,110 @@ const airportCards: ComponentDefinition = {
     },
     {
       name: "destinationContext",
-      task: "airport_context",
+      task: "destination_airport_context",
       instruction: "Two practical sentences about arriving at this airport.",
       maxTokens: 180,
       complexity: 0.3,
       optional: true,
     },
   ],
-  defaults: { heading: "Airport information" },
+  defaults: { heading: "Airport guide", subtitle: "What to know at each end of this route." },
   render({ values, slots, props }) {
-    const blocks: string[] = [];
+    const cards: string[] = [];
     const used: string[] = [];
 
-    for (const [prefix, slotKey, label] of [
-      ["origin", "originContext", "Departure airport"],
-      ["destination", "destinationContext", "Arrival airport"],
+    for (const [prefix, slotKey, tag] of [
+      ["origin", "originContext", "Departure"],
+      ["destination", "destinationContext", "Arrival"],
     ] as const) {
       const name = S(lookup(values, `${prefix}.airportName`));
       if (!name) continue;
+
       const iata = S(lookup(values, `${prefix}.iata`));
       const city = S(lookup(values, `${prefix}.city`));
       const terminals = N(lookup(values, `${prefix}.terminals`));
       const tz = S(lookup(values, `${prefix}.timezone`));
       used.push(`${prefix}.airportName`, `${prefix}.iata`, `${prefix}.city`);
 
-      const facts = [
-        city ? `Serves ${city}` : null,
-        terminals ? `${terminals} passenger terminal${terminals === 1 ? "" : "s"}` : null,
-        tz ? `Timezone ${tz}` : null,
-      ].filter(Boolean) as string[];
-
-      const ctx = slots[slotKey]?.trim();
-      blocks.push(
-        `        <h3>${escapeHtml(label)}: ${escapeHtml(iata ? `${name} (${iata})` : name)}</h3>\n${bullets(facts)}${
-          ctx ? `\n${paragraphs(ctx)}` : ""
-        }`,
+      cards.push(
+        card({
+          tag,
+          title: iata ? `${name} (${iata})` : name,
+          body: slots[slotKey]?.trim() || (city ? `Serves ${city}.` : undefined),
+          meta: [
+            ...(terminals ? [{ k: "Terminals", v: String(terminals) }] : []),
+            ...(tz ? [{ k: "Timezone", v: tz }] : []),
+          ],
+        }),
       );
     }
 
-    if (!blocks.length) return { html: "", text: "", usedPaths: [], skippedReason: "No airport data resolved" };
+    if (!cards.length) return { html: "", text: "", usedPaths: [], skippedReason: "No airport data resolved" };
+
     return {
-      html: section("airports", S(props.heading, "Airport information"), blocks.join("\n")),
-      text: stripTags(blocks.join(" ")),
+      html: section("airports", S(props.heading, "Airport guide"), S(props.subtitle) || null, cardGrid(cards)),
+      text: stripTags(cards.join(" ")),
       usedPaths: used,
+    };
+  },
+};
+
+const thingsToDo: ComponentDefinition = {
+  key: "things_to_do",
+  name: "Things to do at the destination",
+  category: "CONTENT",
+  description:
+    "Destination highlights with optional licensed photography. Requires an attractions data source - it does not invent places.",
+  version: 1,
+  contentSource: "DYNAMIC",
+  requiredBindings: ["destination.attractions"],
+  optionalBindings: ["destination.city"],
+  aiSlots: [],
+  defaults: { heading: "Top things to do in {city}", subtitle: "Worth planning around, near the centre.", limit: 6 },
+  render({ values, props }) {
+    const attractions = lookup(values, "destination.attractions");
+    if (!Array.isArray(attractions) || !attractions.length) {
+      return {
+        html: "",
+        text: "",
+        usedPaths: [],
+        skippedReason: "No attractions data source is connected for this destination",
+      };
+    }
+
+    const city = S(lookup(values, "destination.city"), "the destination");
+    const limit = N(props.limit) ?? 6;
+    const cards = attractions.slice(0, limit).map((a: any) =>
+      card({
+        tag: a.category ? String(a.category) : undefined,
+        title: String(a.name ?? "Attraction"),
+        body: a.description ? String(a.description) : undefined,
+        image: a.imageUrl ? { src: String(a.imageUrl), alt: String(a.name ?? city), credit: a.imageCredit } : undefined,
+      }),
+    );
+
+    return {
+      html: section(
+        "things-to-do",
+        S(props.heading, "Top things to do in {city}").replace("{city}", city),
+        S(props.subtitle) || null,
+        cardGrid(cards),
+      ),
+      text: attractions
+        .slice(0, limit)
+        .map((a: any) => `${a.name}: ${a.description ?? ""}`)
+        .join(" "),
+      usedPaths: ["destination.attractions"],
     };
   },
 };
 
 const travelTips: ComponentDefinition = {
   key: "travel_tips",
-  name: "Travel tips",
+  name: "Before you book",
   category: "CONTENT",
   description: "Route-specific practical advice, generated from resolved route characteristics.",
-  version: 1,
+  version: 2,
   contentSource: "AI",
   requiredBindings: ["origin.city", "destination.city"],
   optionalBindings: ["route.typicalStops"],
@@ -485,29 +742,38 @@ const travelTips: ComponentDefinition = {
   render({ slots, props }) {
     const text = slots.tips?.trim();
     if (!text) return { html: "", text: "", usedPaths: [], skippedReason: "Tips slot was not generated" };
-    return { html: section("tips", S(props.heading, "Before you book"), paragraphs(text)), text, usedPaths: ["route.typicalStops"] };
+    return {
+      html: section("tips", S(props.heading, "Before you book"), null, prose(text)),
+      text,
+      usedPaths: ["route.typicalStops"],
+    };
   },
 };
 
 const faq: ComponentDefinition = {
   key: "faq",
-  name: "FAQ",
+  name: "Common questions",
   category: "AEO",
   description: "Question-form headings with standalone answers; emits FAQPage schema.",
-  version: 1,
+  version: 2,
   contentSource: "AI",
   requiredBindings: [],
   optionalBindings: [],
   aiSlots: [],
-  defaults: { heading: "Frequently asked questions" },
+  defaults: { heading: "Common questions" },
   render({ page, props }) {
     const faqs = page.faqs ?? [];
     if (!faqs.length) return { html: "", text: "", usedPaths: [], skippedReason: "No FAQ entries were produced" };
-    const body = `        <dl class="fm-faq">\n${faqs
-      .map((f) => `          <dt>${escapeHtml(f.question)}</dt>\n          <dd>${escapeHtml(f.answer)}</dd>`)
-      .join("\n")}\n        </dl>`;
+
+    const body = faqs
+      .map(
+        (f) =>
+          `        <div class="faq-item"><p class="faq-q"><span class="msi">help</span>${escapeHtml(f.question)}</p><p class="faq-a">${escapeHtml(f.answer)}</p></div>`,
+      )
+      .join("\n");
+
     return {
-      html: section("faq", S(props.heading, "Frequently asked questions"), body),
+      html: section("faq", S(props.heading, "Common questions"), null, body),
       text: faqs.map((f) => `${f.question} ${f.answer}`).join(" "),
       usedPaths: [],
     };
@@ -516,22 +782,26 @@ const faq: ComponentDefinition = {
 
 const comparisonTable: ComponentDefinition = {
   key: "comparison_table",
-  name: "Comparison table",
+  name: "How this route compares",
   category: "DATA",
-  description: "Compares this route against sibling routes from the same origin.",
-  version: 1,
+  description: "Compares this route against siblings from the same origin.",
+  version: 2,
   contentSource: "DYNAMIC",
   requiredBindings: [],
   optionalBindings: [],
   aiSlots: [],
-  defaults: { heading: "How this route compares" },
+  defaults: { heading: "How this route compares", subtitle: "Other routes from the same origin." },
   render({ page, props }) {
-    const related = page.relatedRoutes ?? [];
+    const related = (page.relatedRoutes ?? []).filter((r) => r.note);
     if (related.length < 2) return { html: "", text: "", usedPaths: [], skippedReason: "Not enough sibling routes to compare" };
-    const rows = related.slice(0, 6).map((r) => ({ label: r.label, value: r.note ?? "" }));
+
+    const cards = related.slice(0, 6).map((r) =>
+      card({ title: r.label, body: r.note, href: r.url, linkLabel: "See route" }),
+    );
+
     return {
-      html: section("comparison", S(props.heading, "How this route compares"), table(rows)),
-      text: rows.map((r) => `${r.label} ${r.value}`).join(". "),
+      html: section("comparison", S(props.heading, "How this route compares"), S(props.subtitle) || null, cardGrid(cards)),
+      text: related.map((r) => `${r.label} ${r.note ?? ""}`).join(". "),
       usedPaths: [],
     };
   },
@@ -542,7 +812,7 @@ const relatedRoutes: ComponentDefinition = {
   name: "Related routes",
   category: "LINKING",
   description: "Semantically related route pages, supplied by the Internal Linking Agent.",
-  version: 1,
+  version: 2,
   contentSource: "TEMPLATE",
   requiredBindings: [],
   optionalBindings: [],
@@ -551,19 +821,20 @@ const relatedRoutes: ComponentDefinition = {
   render({ page, props }) {
     const items = page.relatedRoutes ?? [];
     if (!items.length) return { html: "", text: "", usedPaths: [], skippedReason: "No related routes proposed" };
-    const body = `        <ul>\n${items
-      .map((r) => `          <li><a href="${escapeHtml(r.url)}">${escapeHtml(r.label)}</a></li>`)
-      .join("\n")}\n        </ul>`;
-    return { html: section("related-routes", S(props.heading, "Related routes"), body), text: items.map((i) => i.label).join(", "), usedPaths: [] };
+    return {
+      html: section("related-routes", S(props.heading, "Related routes"), null, chips(items.map((r) => ({ label: r.label, href: r.url })))),
+      text: items.map((i) => i.label).join(", "),
+      usedPaths: [],
+    };
   },
 };
 
 const relatedDestinations: ComponentDefinition = {
   key: "related_destinations",
-  name: "Related destinations",
+  name: "Explore related pages",
   category: "LINKING",
   description: "Destination and airport pages related to this page's entities.",
-  version: 1,
+  version: 2,
   contentSource: "TEMPLATE",
   requiredBindings: [],
   optionalBindings: [],
@@ -572,59 +843,16 @@ const relatedDestinations: ComponentDefinition = {
   render({ page, props }) {
     const items = [...(page.relatedAirports ?? []), ...(page.relatedDestinations ?? [])];
     if (!items.length) return { html: "", text: "", usedPaths: [], skippedReason: "No related destination pages proposed" };
-    const body = `        <ul>\n${items
-      .map((r) => `          <li><a href="${escapeHtml(r.url)}">${escapeHtml(r.label)}</a></li>`)
-      .join("\n")}\n        </ul>`;
-    return { html: section("related-destinations", S(props.heading, "Explore related pages"), body), text: items.map((i) => i.label).join(", "), usedPaths: [] };
-  },
-};
-
-const breadcrumb: ComponentDefinition = {
-  key: "breadcrumb",
-  name: "Breadcrumb",
-  category: "LAYOUT",
-  description: "Hierarchy trail; also emitted as BreadcrumbList structured data.",
-  version: 1,
-  contentSource: "TEMPLATE",
-  requiredBindings: [],
-  optionalBindings: [],
-  aiSlots: [],
-  defaults: {},
-  render({ page }) {
-    const crumbs = page.breadcrumbs ?? [];
-    if (!crumbs.length) return { html: "", text: "", usedPaths: [], skippedReason: "No breadcrumb trail supplied" };
-    const items = crumbs
-      .map((c, i) =>
-        i === crumbs.length - 1
-          ? `<span aria-current="page">${escapeHtml(c.label)}</span>`
-          : `<a href="${escapeHtml(c.url)}">${escapeHtml(c.label)}</a>`,
-      )
-      .join(" › ");
-    return { html: `      <nav class="fm-breadcrumb" aria-label="Breadcrumb">${items}</nav>`, text: crumbs.map((c) => c.label).join(" > "), usedPaths: [] };
-  },
-};
-
-const cta: ComponentDefinition = {
-  key: "cta",
-  name: "Call to action",
-  category: "CONVERSION",
-  description: "Closing CTA in the brand's configured style.",
-  version: 1,
-  contentSource: "TEMPLATE",
-  requiredBindings: ["origin.city", "destination.city"],
-  optionalBindings: [],
-  aiSlots: [],
-  defaults: { label: "Compare live fares", href: "/search" },
-  render({ values, props }) {
-    const o = S(lookup(values, "origin.city"));
-    const d = S(lookup(values, "destination.city"));
-    const text = `Ready to compare ${o} to ${d} options? Live availability changes daily — check the dates you actually want.`;
-    const html = section(
-      "cta",
-      null,
-      `        <p>${escapeHtml(text)}</p>\n        <a class="fm-cta" href="${escapeHtml(S(props.href, "/search"))}?from=${escapeHtml(S(lookup(values, "route.origin")))}&to=${escapeHtml(S(lookup(values, "route.destination")))}">${escapeHtml(S(props.label, "Compare live fares"))}</a>`,
-    );
-    return { html, text, usedPaths: ["origin.city", "destination.city"] };
+    return {
+      html: section(
+        "related-destinations",
+        S(props.heading, "Explore related pages"),
+        null,
+        chips(items.map((r) => ({ label: r.label, href: r.url }))),
+      ),
+      text: items.map((i) => i.label).join(", "),
+      usedPaths: [],
+    };
   },
 };
 
@@ -633,7 +861,7 @@ const sourceEvidence: ComponentDefinition = {
   name: "Source & evidence block",
   category: "GEO",
   description: "Visible provenance for every factual claim: source, retrieval date and whether it is reference data.",
-  version: 1,
+  version: 2,
   contentSource: "DYNAMIC",
   requiredBindings: [],
   optionalBindings: [],
@@ -642,18 +870,24 @@ const sourceEvidence: ComponentDefinition = {
   render({ page, props }) {
     const evidence = page.evidence ?? [];
     if (!evidence.length) return { html: "", text: "", usedPaths: [], skippedReason: "No evidence entries supplied" };
+
     const rows = evidence
       .map(
         (e) =>
-          `          <li>${escapeHtml(e.claim)} — <em>${escapeHtml(e.source)}</em>, retrieved ${escapeHtml(
-            e.retrievedAt.slice(0, 10),
-          )}${e.isMock ? ' <span class="fm-meta">(reference dataset, not live)</span>' : ""}</li>`,
+          `            <li>${escapeHtml(e.claim)} — <em>${escapeHtml(e.source)}</em>, retrieved ${escapeHtml(e.retrievedAt.slice(0, 10))}${
+            e.isMock ? `<span class="ref">reference data, not live</span>` : ""
+          }</li>`,
       )
       .join("\n");
+
+    const body = `        <div class="sources">
+          <ul>
+${rows}
+          </ul>${page.lastUpdated ? `\n          <p>Last updated ${escapeHtml(page.lastUpdated.slice(0, 10))}.</p>` : ""}
+        </div>`;
+
     return {
-      html: `      <section id="sources" class="fm-sources">\n        <h2>${escapeHtml(S(props.heading, "Where this information comes from"))}</h2>\n        <ul>\n${rows}\n        </ul>${
-        page.lastUpdated ? `\n        <p class="fm-meta">Last updated ${escapeHtml(page.lastUpdated.slice(0, 10))}.</p>` : ""
-      }\n      </section>`,
+      html: section("sources", S(props.heading, "Where this information comes from"), null, body),
       text: evidence.map((e) => `${e.claim} (${e.source})`).join("; "),
       usedPaths: [],
     };
@@ -665,7 +899,7 @@ const authorTrust: ComponentDefinition = {
   name: "Author / trust block",
   category: "GEO",
   description: "States who produced the page and how it is maintained.",
-  version: 1,
+  version: 2,
   contentSource: "TEMPLATE",
   requiredBindings: [],
   optionalBindings: [],
@@ -674,23 +908,66 @@ const authorTrust: ComponentDefinition = {
   render({ page }) {
     const text = `Compiled and maintained by the ${page.brandName} route research team. Route facts are drawn from the sources listed above and reviewed before publication; anything time-sensitive is verified against a live source or omitted.`;
     return {
-      html: `      <section id="about-this-page" class="fm-meta">\n        <p>${escapeHtml(text)}</p>\n      </section>`,
+      html: `      <section id="about-this-page"><p class="trust">${escapeHtml(text)}</p></section>`,
       text,
       usedPaths: [],
     };
   },
 };
 
+const cta: ComponentDefinition = {
+  key: "cta",
+  name: "Call to action",
+  category: "CONVERSION",
+  description: "Closing CTA band in the brand's configured style.",
+  version: 2,
+  contentSource: "TEMPLATE",
+  requiredBindings: ["origin.city", "destination.city"],
+  optionalBindings: [],
+  aiSlots: [],
+  defaults: { heading: "Ready to compare live fares?", label: "Search flights" },
+  render({ values, props, page }) {
+    const base = S(props.href) || page.searchUrl || "";
+    if (!base) {
+      return {
+        html: "",
+        text: "",
+        usedPaths: [],
+        skippedReason: "No search destination is configured (SITE_SEARCH_URL), so there is nowhere honest to send the click",
+      };
+    }
+
+    const o = S(lookup(values, "origin.city"));
+    const d = S(lookup(values, "destination.city"));
+    const copy = `Live availability on ${o} to ${d} changes daily — check the dates you actually want.`;
+    const href = `${base}?from=${encodeURIComponent(S(lookup(values, "route.origin")))}&to=${encodeURIComponent(S(lookup(values, "route.destination")))}`;
+
+    const html = `      <div class="cta-band">
+        <div>
+          <h3>${escapeHtml(S(props.heading, "Ready to compare live fares?"))}</h3>
+          <p>${escapeHtml(copy)}</p>
+        </div>
+        <a class="cta-btn" href="${escapeHtml(href)}">${escapeHtml(S(props.label, "Search flights"))}</a>
+      </div>`;
+
+    return { html, text: copy, usedPaths: ["origin.city", "destination.city"] };
+  },
+};
+
 export const COMPONENT_LIBRARY: ComponentDefinition[] = [
   breadcrumb,
-  hero,
   searchBox,
+  hero,
+  heroPhoto,
+  fareHero,
   answerBlock,
   routeSummary,
   routeOverview,
   flightOptions,
+  priceByWeek,
   airlineCards,
   airportCards,
+  thingsToDo,
   travelTips,
   faq,
   comparisonTable,
@@ -705,7 +982,11 @@ export function componentByKey(key: string): ComponentDefinition | undefined {
   return COMPONENT_LIBRARY.find((c) => c.key === key);
 }
 
-/** Ordered block list for the canonical route page family. */
+/**
+ * Ordered block list for the canonical route page family, matching the
+ * FaresMatch reference layout. Blocks whose data cannot resolve simply do not
+ * render, so the page degrades in a defined order rather than breaking.
+ */
 export const ROUTE_TEMPLATE_BLOCKS: {
   componentKey: string;
   isRequired: boolean;
@@ -713,14 +994,18 @@ export const ROUTE_TEMPLATE_BLOCKS: {
   config?: Record<string, unknown>;
 }[] = [
   { componentKey: "breadcrumb", isRequired: false },
-  { componentKey: "hero", isRequired: true },
-  { componentKey: "answer_block", isRequired: true },
   { componentKey: "search_box", isRequired: false },
+  { componentKey: "hero", isRequired: true },
+  { componentKey: "hero_photo", isRequired: false },
+  { componentKey: "fare_hero", isRequired: false, condition: "offers.cheapestPrice" },
+  { componentKey: "answer_block", isRequired: true },
   { componentKey: "route_summary", isRequired: true },
   { componentKey: "route_overview", isRequired: true },
   { componentKey: "flight_options", isRequired: false, condition: "offers.items" },
+  { componentKey: "price_by_week", isRequired: false, condition: "offers.weeklySeries" },
   { componentKey: "airline_cards", isRequired: false, condition: "route.airlines" },
   { componentKey: "airport_cards", isRequired: false },
+  { componentKey: "things_to_do", isRequired: false, condition: "destination.attractions" },
   { componentKey: "travel_tips", isRequired: false },
   { componentKey: "faq", isRequired: true },
   { componentKey: "comparison_table", isRequired: false },
@@ -730,3 +1015,6 @@ export const ROUTE_TEMPLATE_BLOCKS: {
   { componentKey: "author_trust", isRequired: false },
   { componentKey: "cta", isRequired: false },
 ];
+
+/** Bumped when the block list changes, so a fresh template is built. */
+export const ROUTE_TEMPLATE_VERSION = 2;

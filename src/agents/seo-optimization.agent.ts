@@ -18,7 +18,8 @@ import { prisma } from "@/core/db/client";
 import { readJson, writeJson } from "@/core/db/json";
 import { BaseAgent, type AgentOutcome, type AgentRunContext, type ValidationRule } from "@/agents/base";
 import { generateSchemas } from "@/engine/schema/generator";
-import { clampToSentence, titleCase, truncate, wordCount } from "@/core/utils/text";
+import { clampToSentence, wordCount } from "@/core/utils/text";
+import { buildTitle } from "@/engine/content/composer";
 import { env } from "@/core/config/env";
 import type { RenderedBlock } from "@/engine/templates/renderer";
 
@@ -107,9 +108,7 @@ export class SeoOptimizationAgent extends BaseAgent<SeoOptimizationInput, SeoOpt
     const titleMax = ctx.brand.seoRules?.titleMaxChars ?? 60;
     const metaMax = ctx.brand.seoRules?.metaMaxChars ?? 158;
 
-    const baseTitle = `${titleCase(vars.originCity)} to ${titleCase(vars.destinationCity)} Flights`;
-    const withBrand = `${baseTitle} | ${ctx.brand.brandName}`;
-    const title = withBrand.length <= titleMax ? withBrand : truncate(baseTitle, titleMax);
+    const title = buildTitle(vars, ctx.brand);
 
     let metaDescription = version.metaDescription;
     if (!metaDescription || metaDescription.length < 60 || metaDescription.length > metaMax) {

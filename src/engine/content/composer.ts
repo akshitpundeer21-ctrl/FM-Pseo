@@ -14,6 +14,7 @@
  * skipped with a recorded reason.
  */
 import { clampToSentence, titleCase, truncate } from "@/core/utils/text";
+import { env } from "@/core/config/env";
 import type { BrandKnowledge } from "@/modules/brand/brand";
 import type { DataContext, DataPoint } from "@/engine/data/types";
 import { renderTemplate, type CompositionPolicy, type RenderResult, type TemplateBlockSpec } from "@/engine/templates/renderer";
@@ -125,6 +126,7 @@ export async function composePage(params: ComposeParams): Promise<ComposedPage> 
     faqs,
     evidence,
     lastUpdated: new Date().toISOString(),
+    searchUrl: env().SITE_SEARCH_URL || undefined,
   };
 
   const render = await renderTemplate({
@@ -166,11 +168,24 @@ export async function composePage(params: ComposeParams): Promise<ComposedPage> 
   };
 }
 
-function buildTitle(v: ComposeVariables, brand: BrandKnowledge): string {
+/**
+ * The page title pattern. Shared with the optimisation agent so the title a
+ * page is composed with and the title it is optimised to are the same rule in
+ * one place, not two that can drift.
+ */
+export function buildTitle(v: { originCity: string; destinationCity: string }, brand: BrandKnowledge): string {
   const max = brand.seoRules?.titleMaxChars ?? 60;
-  const base = `${titleCase(v.originCity)} to ${titleCase(v.destinationCity)} Flights`;
-  const withBrand = `${base} | ${brand.brandName}`;
-  return withBrand.length <= max ? withBrand : truncate(base, max);
+  const o = titleCase(v.originCity);
+  const d = titleCase(v.destinationCity);
+  // Longest form first, falling back as the character budget runs out, so the
+  // brand suffix is dropped before the route itself is truncated.
+  const candidates = [
+    `Cheap Flights from ${o} to ${d} | ${brand.brandName}`,
+    `Cheap Flights from ${o} to ${d}`,
+    `${o} to ${d} Flights | ${brand.brandName}`,
+    `${o} to ${d} Flights`,
+  ];
+  return candidates.find((c) => c.length <= max) ?? truncate(`${o} to ${d} Flights`, max);
 }
 
 function fallbackMeta(v: ComposeVariables): string {

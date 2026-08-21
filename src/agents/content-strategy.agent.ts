@@ -10,7 +10,7 @@ import { z } from "zod";
 import { prisma } from "@/core/db/client";
 import { readJson, writeJson } from "@/core/db/json";
 import { BaseAgent, type AgentOutcome, type AgentRunContext, type ValidationRule } from "@/agents/base";
-import { ROUTE_TEMPLATE_BLOCKS, componentByKey } from "@/engine/templates/component-library";
+import { ROUTE_TEMPLATE_BLOCKS, ROUTE_TEMPLATE_VERSION, componentByKey } from "@/engine/templates/component-library";
 import type { CompositionPolicy } from "@/engine/templates/renderer";
 
 const InputSchema = z.object({
@@ -99,7 +99,9 @@ export class ContentStrategyAgent extends BaseAgent<ContentStrategyInput, Conten
     });
 
     // --- 2. Template -------------------------------------------------------
-    const templateKey = input.templateKey ?? `${family.key}_v1`;
+    // Versioned so changing the block list builds a new template rather than
+    // mutating one that existing pages were generated from.
+    const templateKey = input.templateKey ?? `${family.key}_v${ROUTE_TEMPLATE_VERSION}`;
     let template = await prisma.template.findFirst({
       where: { projectId: ctx.projectId, key: templateKey },
       include: { blocks: { include: { component: true }, orderBy: { sequence: "asc" } } },
@@ -115,7 +117,7 @@ export class ContentStrategyAgent extends BaseAgent<ContentStrategyInput, Conten
           name: `${family.name} template`,
           description: `Reusable block structure for ${family.name}. Structure is shared; substance is resolved per page.`,
           seoConfigJson: writeJson({
-            titlePattern: "{originCity} to {destinationCity} Flights | {brand}",
+            titlePattern: "Cheap Flights from {originCity} to {destinationCity} | {brand}",
             metaPattern: "Compare {originCity} to {destinationCity} flights: airlines, routings, airports and tips.",
           }),
         },
