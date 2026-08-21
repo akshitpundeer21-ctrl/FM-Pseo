@@ -172,6 +172,42 @@ panel states plainly that there are no live results.
 
 ---
 
+## Troubleshooting
+
+### The dev overlay says `[object Event]`
+
+A stylesheet failed to load. It is almost never a bug in this codebase.
+
+React creates `link._p = new Promise((resolve, reject) => { link.onload = resolve; link.onerror = reject })`
+for every client-inserted hoistable `<link rel="stylesheet">` and never attaches a rejection handler. When
+the stylesheet 404s the browser calls `onerror(event)`, so the promise rejects with a raw DOM **Event**.
+Next's overlay runs `coerceError` over `ev.reason`, which is `isError(v) ? v : new Error('' + v)` — and
+`'' + event` is the string `[object Event]`. The Error is constructed inside `coerceError`, so the stack
+is two `node_modules/next` frames and zero application frames, which is why the overlay shows
+**"Call Stack 2 — show 2 ignore-listed frames"** and tells you nothing.
+
+Note that a failing `<script>` cannot cause this: Next registers `window.addEventListener('error', ...)`
+without `capture`, and resource-load error events do not bubble. Only the rejected-promise path reaches
+the overlay, and only stylesheets take it.
+
+**Diagnose it in ten seconds** — open DevTools → Network, filter to `css`, and reload. A 404 on
+`/_next/static/css/app/layout.css` confirms it.
+
+Usual causes, in order of likelihood:
+
+1. **A build ran while the dev server was up.** `next build` and `next dev` share `.next`, so the build
+   replaces the dev chunks while the dev server keeps serving manifests that name the old files. Use
+   `npm run build:check` instead — it builds into `.next-build` and leaves the dev server alone.
+2. **A stale tab after a restart or recompile.** Dev CSS URLs carry a `?v=<timestamp>` cache-buster, so a
+   tab holding older HTML asks for a file the server no longer has. Hard-reload the tab.
+3. **`.next` was deleted underneath a running server.** Stop the server first, then delete, then restart.
+
+If none of those apply, check for a second dev server squatting on the port
+(`netstat -ano | grep ":3000.*LISTENING"`) — an orphan from an earlier run will serve chunks from a
+`.next` that no longer matches.
+
+---
+
 ## Documentation
 
 | Document | Contents |
