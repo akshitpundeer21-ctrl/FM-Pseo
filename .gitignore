@@ -34,3 +34,6 @@ Thumbs.db
 coverage/
 .vitest/
 tsconfig.tsbuildinfo
+
+# test artefacts
+published-test/
