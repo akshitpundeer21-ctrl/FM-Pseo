@@ -159,10 +159,12 @@ panel states plainly that there are no live results.
 | `npm run dev` | Start the app on http://localhost:3000 |
 | `npm run setup` | Generate the Prisma client, apply migrations, seed configuration |
 | `npm run seed` | Re-seed configuration (idempotent) |
+| `npm run build` | Production build into `.next` |
+| `npm run build:check` | Verification build into `.next-build` — safe to run while `npm run dev` is up |
 | `npm test` | Run all 139 tests |
 | `npm run e2e` | Drive the full pipeline from the terminal |
 | `npm run typecheck` | TypeScript, no emit |
-| `npm run build` / `npm start` | Production build and serve |
+| `npm start` | Serve the production build |
 | `npm run db:studio` | Browse the database |
 | `npx tsx scripts/reset-run-data.ts` | Clear everything the agents produced, keep configuration |
 | `npx tsx scripts/build-routes-dataset.ts` | Regenerate the route reference dataset |

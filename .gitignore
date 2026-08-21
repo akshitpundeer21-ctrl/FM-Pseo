@@ -37,3 +37,4 @@ tsconfig.tsbuildinfo
 
 # test artefacts
 published-test/
+.next-build/
