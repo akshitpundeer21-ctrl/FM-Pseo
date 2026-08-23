@@ -105,6 +105,8 @@ export const IntegrationCategorySchema = z.enum([
   "TRAVEL_DATA",
   "CRAWLER",
   "AI_VISIBILITY",
+  // A spreadsheet or similar acting as a work queue for the orchestrator.
+  "WORKFLOW_SOURCE",
 ]);
 export type IntegrationCategory = z.infer<typeof IntegrationCategorySchema>;
 

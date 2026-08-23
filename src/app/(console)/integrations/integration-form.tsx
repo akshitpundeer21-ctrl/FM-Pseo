@@ -1,8 +1,8 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
-import { Loader2, Trash2 } from "lucide-react";
+import { Fragment, useState } from "react";
+import { CheckCircle2, Loader2, Plug, Trash2, XCircle } from "lucide-react";
 
 export interface IntegrationView {
   provider: string;
@@ -16,6 +16,18 @@ export interface IntegrationView {
   credentials: { key: string; label: string; present: boolean; source: string; hint: string }[];
   settings: { key: string; label: string; value: string }[];
   lastError: string | null;
+  /** A safe connection probe exists for this provider. */
+  testable?: boolean;
+  /** Any credential or setting is stored, so there is something to disconnect. */
+  connected?: boolean;
+}
+
+interface TestResult {
+  outcome: string;
+  ok: boolean;
+  message: string;
+  detail?: Record<string, string | number | boolean>;
+  durationMs: number;
 }
 
 /**
@@ -30,6 +42,7 @@ export function IntegrationForm({ integration }: { integration: IntegrationView 
   );
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
+  const [test, setTest] = useState<TestResult | null>(null);
 
   async function save() {
     setBusy(true);
@@ -65,6 +78,34 @@ export function IntegrationForm({ integration }: { integration: IntegrationView 
       });
       setMessage({ ok: true, text: `Removed ${key}.` });
       router.refresh();
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function action(kind: "test" | "disconnect") {
+    if (kind === "disconnect" && !confirm(`Remove every stored credential for ${integration.name}? This cannot be undone.`)) {
+      return;
+    }
+    setBusy(true);
+    setMessage(null);
+    setTest(null);
+    try {
+      const res = await fetch(`/api/integrations/${integration.provider}`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ action: kind }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setMessage({ ok: false, text: data?.error?.message ?? `${kind} failed` });
+        return;
+      }
+      if (kind === "test") setTest(data.result as TestResult);
+      else setMessage({ ok: true, text: `Disconnected. ${data.removedCredentials} credential(s) removed.` });
+      router.refresh();
+    } catch (e) {
+      setMessage({ ok: false, text: (e as Error).message });
     } finally {
       setBusy(false);
     }
@@ -128,12 +169,62 @@ export function IntegrationForm({ integration }: { integration: IntegrationView 
         >
           {busy ? <Loader2 size={13} className="animate-spin" /> : null} Save
         </button>
+
+        {integration.testable ? (
+          <button
+            className="fm-btn !py-1.5 !text-[12px]"
+            onClick={() => action("test")}
+            disabled={busy}
+            title="Runs a read-only probe against the provider. Never publishes, writes or deletes anything."
+          >
+            <Plug size={13} /> Test connection
+          </button>
+        ) : null}
+
+        {integration.connected ? (
+          <button
+            className="fm-btn !py-1.5 !text-[12px] !text-[var(--color-danger)]"
+            onClick={() => action("disconnect")}
+            disabled={busy}
+            title="Removes every stored credential and marks the integration disabled."
+          >
+            Disconnect
+          </button>
+        ) : null}
+
         {message ? (
           <span className="text-[11.5px]" style={{ color: message.ok ? "var(--color-ok)" : "var(--color-danger)" }}>
             {message.text}
           </span>
         ) : null}
       </div>
+
+      {test ? (
+        <div
+          className="rounded border px-2.5 py-2 text-[11.5px]"
+          style={{
+            borderColor: test.ok ? "var(--color-ok)" : "var(--color-danger)",
+            color: test.ok ? "var(--color-ok)" : "var(--color-danger)",
+          }}
+        >
+          <div className="flex items-center gap-2">
+            {test.ok ? <CheckCircle2 size={13} /> : <XCircle size={13} />}
+            <span className="font-medium">{test.outcome.replace(/_/g, " ")}</span>
+            <span className="text-[var(--color-ink-4)]">{test.durationMs} ms</span>
+          </div>
+          <p className="mt-1 text-[var(--color-ink-2)]">{test.message}</p>
+          {test.detail ? (
+            <dl className="mt-1.5 grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-[11px] text-[var(--color-ink-3)]">
+              {Object.entries(test.detail).map(([k, v]) => (
+                <Fragment key={k}>
+                  <dt className="text-[var(--color-ink-4)]">{k}</dt>
+                  <dd className="font-mono">{String(v)}</dd>
+                </Fragment>
+              ))}
+            </dl>
+          ) : null}
+        </div>
+      ) : null}
     </div>
   );
 }

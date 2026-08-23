@@ -1,5 +1,6 @@
 import { requireProject } from "@/app/(console)/_lib/data";
 import { listIntegrations } from "@/integrations/service";
+import { isTestable } from "@/integrations/testers";
 import { IntegrationForm } from "@/app/(console)/integrations/integration-form";
 import { Badge, Callout, Card, Grid, MockBadge, PageHeader, StatusBadge } from "@/ui/primitives";
 import { env } from "@/core/config/env";
@@ -95,7 +96,15 @@ export default async function IntegrationsPage() {
                 ) : null}
 
                 <div className="mt-3 border-t border-[var(--color-border)] pt-3">
-                  <IntegrationForm integration={i} />
+                  <IntegrationForm
+                    integration={{
+                      ...i,
+                      testable: isTestable(i.provider),
+                      // Only a stored secret can be disconnected; an env-var
+                      // fallback is removed from .env, not from here.
+                      connected: i.credentials.some((c) => c.source === "database"),
+                    }}
+                  />
                 </div>
               </div>
             ))}

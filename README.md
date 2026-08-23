@@ -162,7 +162,7 @@ panel states plainly that there are no live results.
 | `npx tsx scripts/ingest-travel.ts` | Populate the Travel Data Layer from the bundled reference dataset |
 | `npm run build` | Production build into `.next` |
 | `npm run build:check` | Verification build into `.next-build` — safe to run while `npm run dev` is up |
-| `npm test` | Run all 175 tests |
+| `npm test` | Run all 206 tests |
 | `npm run e2e` | Drive the full pipeline from the terminal |
 | `npm run typecheck` | TypeScript, no emit |
 | `npm start` | Serve the production build |
@@ -219,7 +219,7 @@ If none of those apply, check for a second dev server squatting on the port
 | [docs/SKILL-MANAGEMENT.md](docs/SKILL-MANAGEMENT.md) | Versioning, activation, rollback, assignment, the sandbox and skill permissions |
 | [docs/TRAVEL-DATA-LAYER.md](docs/TRAVEL-DATA-LAYER.md) | Normalized travel entities, provenance, provider adapters, the cache, and how it plugs into data.resolve |
 | [docs/PUBLISHED-PAGES.md](docs/PUBLISHED-PAGES.md) | What a published page looks like, which blocks need a provider, and link integrity |
-| [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md) | Every integration, the exact credentials it needs, and what breaks without it |
+| [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md) | Every integration, the credentials it needs, the Integrations Center, connection tests, and what breaks without it |
 | [docs/API.md](docs/API.md) | HTTP API reference |
 | [docs/TESTING.md](docs/TESTING.md) | Test strategy and how to run the suites |
 | [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) | Moving from SQLite/localhost to Postgres/cloud |

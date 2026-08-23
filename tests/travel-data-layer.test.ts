@@ -30,6 +30,7 @@ import {
   travelDataStats,
 } from "@/modules/travel/service";
 import { TravelDbAdapter } from "@/engine/data/adapters/travel-db";
+import { DataPointSchema } from "@/tools/definitions/data";
 import { DynamicDataEngine, TIME_SENSITIVE_NAMESPACES } from "@/engine/data/engine";
 import {
   cached,
@@ -451,6 +452,27 @@ describe("adapter resolution", () => {
     expect(points.every((p) => p.isTimeSensitive)).toBe(true);
 
     await prisma.travelPolicy.delete({ where: { id: policy.id } });
+  });
+});
+
+describe("the data.resolve tool boundary", () => {
+  // DataPointSchema in src/tools/definitions/data.ts is a hand-maintained Zod
+  // mirror of the DataPoint interface, and Zod strips unknown keys. If the two
+  // ever drift, provenance silently disappears on its way to an agent - the
+  // value still arrives, just with no source behind it, which is the one thing
+  // this system must never do. This pins them together.
+  it("does not strip any provenance field off a point on its way to an agent", async () => {
+    const points = await new TravelDbAdapter().resolve("route", { origin: "DEL", destination: "YYZ" });
+    const duration = points.find((p) => p.path === "route.typicalDurationMinutes");
+    expect(duration).toBeTruthy();
+
+    const parsed = DataPointSchema.parse(duration);
+    expect(Object.keys(parsed).sort()).toEqual(Object.keys(duration!).sort());
+
+    // The fields that carry attribution specifically.
+    for (const field of ["sourceKey", "sourceName", "retrievedAt", "confidence", "isMock", "method"]) {
+      expect(parsed).toHaveProperty(field);
+    }
   });
 });
 

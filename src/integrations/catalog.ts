@@ -160,6 +160,83 @@ export const INTEGRATION_CATALOG: IntegrationDefinition[] = [
     hasMock: false,
     degradesTo: "Always available. Respects robots.txt and a configurable concurrency limit.",
   },
+  // -------------------------------------------------------------------------
+  // Added by the Integrations Center. These four carry no `envVar` on their
+  // secrets (except the Google service account, which already has one), so they
+  // are database-only: envValue() returns "" for an undeclared name, which
+  // means src/core/config/env.ts needs no new keys and no schema change.
+  // -------------------------------------------------------------------------
+  {
+    provider: "github",
+    name: "GitHub",
+    category: "CMS",
+    description:
+      "Publishing target. The Publishing Agent commits rendered pages to a repository through the github.publish tool; a connected host such as Vercel deploys them.",
+    docsUrl: "https://docs.github.com/rest",
+    credentials: [
+      {
+        key: "token",
+        label: "Personal access token",
+        help: "Fine-grained PAT with Contents: read and write on the target repository, or a GitHub App installation token.",
+      },
+    ],
+    settings: [
+      { key: "owner", label: "Repository owner" },
+      { key: "repo", label: "Repository name" },
+      { key: "branch", label: "Branch", help: "Defaults to main." },
+      { key: "contentPath", label: "Content path", help: "Directory inside the repo, e.g. content/flights.", optional: true },
+    ],
+    hasMock: false,
+    degradesTo:
+      "Without it github.publish refuses to run and the Publishing Agent falls back to the adapter configured on the website. Nothing is written to any repository.",
+  },
+  {
+    provider: "google_sheets",
+    name: "Google Sheets",
+    category: "WORKFLOW_SOURCE",
+    description:
+      "A spreadsheet used as a job queue: rows describe work to plan, and the Master Orchestrator can read them and write status back.",
+    docsUrl: "https://developers.google.com/sheets/api",
+    credentials: [
+      {
+        key: "serviceAccountJson",
+        label: "Service account JSON",
+        envVar: "GOOGLE_SERVICE_ACCOUNT_JSON",
+        help: "Share the spreadsheet with the service account's client_email, as an Editor if you want status written back.",
+      },
+    ],
+    settings: [
+      { key: "spreadsheetId", label: "Spreadsheet ID", help: "The long id from the sheet URL." },
+      { key: "sheetName", label: "Sheet name", help: "Defaults to the first sheet.", optional: true },
+    ],
+    hasMock: false,
+    degradesTo:
+      "Without it the google_sheets tools refuse to run. No queue is read and no rows are written; the orchestrator still accepts objectives typed into the dashboard.",
+  },
+  {
+    provider: "semrush",
+    name: "Semrush",
+    category: "KEYWORD_DATA",
+    description: "Keyword volume and difficulty, as an alternative source behind keyword.discover.",
+    docsUrl: "https://developer.semrush.com/api/",
+    credentials: [{ key: "apiKey", label: "API key" }],
+    settings: [{ key: "database", label: "Database", help: "Regional database code, e.g. us, uk, in. Defaults to us.", optional: true }],
+    hasMock: false,
+    degradesTo:
+      "Without it keyword.discover uses DataForSEO if connected, otherwise the labelled synthetic corpus. Volumes from that corpus are never presented as measurements.",
+  },
+  {
+    provider: "ahrefs",
+    name: "Ahrefs",
+    category: "KEYWORD_DATA",
+    description: "Keyword and backlink metrics, as an alternative source behind keyword.discover.",
+    docsUrl: "https://docs.ahrefs.com/docs/api/reference/introduction",
+    credentials: [{ key: "apiKey", label: "API token" }],
+    settings: [{ key: "country", label: "Country", help: "Two-letter country code, e.g. us. Defaults to us.", optional: true }],
+    hasMock: false,
+    degradesTo:
+      "Without it keyword.discover uses DataForSEO if connected, otherwise the labelled synthetic corpus.",
+  },
 ];
 
 export function findIntegration(provider: string): IntegrationDefinition | undefined {

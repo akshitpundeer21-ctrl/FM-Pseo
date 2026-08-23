@@ -186,3 +186,133 @@ Add an entry to `INTEGRATION_CATALOG` in `src/integrations/catalog.ts`:
 The Integrations dashboard renders from the catalog, so no UI change is needed. Then implement the
 provider behind the relevant interface and select it in the tool when `ctx.credentials.configured` is
 true.
+
+---
+
+## The Integrations Center
+
+`/integrations` renders the catalog. Adding a provider is a data change to
+`src/integrations/catalog.ts`, not a UI change — the page is generated from it.
+
+Fifteen providers are catalogued: the twelve the platform targets, plus
+`webhook_cms`, `perplexity` and `internal_crawler`.
+
+### Connect · Test · Disconnect
+
+| Action | Endpoint | Notes |
+| --- | --- | --- |
+| Connect | `POST /api/integrations` | Unchanged. Encrypts each secret; returns a hint only. |
+| Remove one key | `DELETE /api/integrations` | Unchanged. |
+| Test / Disconnect / Enable | `POST /api/integrations/:provider` | `{ action: "test" \| "disconnect" \| "enable" }` |
+
+All of them require `integration:write`. Testing reaches an external service and
+disconnecting destroys secrets, so neither sits behind read-only permission.
+
+**Disconnect** removes every stored credential, clears the settings and sets
+status `DISABLED` — deliberately not `NOT_CONFIGURED`, so an env-var fallback
+quietly taking over reads as the choice it was rather than looking like the
+provider was never set up. `enable` reverses it without re-entering anything.
+
+### Connection tests
+
+One probe per provider in `src/integrations/testers.ts`, under three rules:
+
+1. **Read-only.** Every probe is a GET or an auth handshake. GitHub reads the
+   repo, Sheets reads tab metadata, GA4 reads property metadata, Amadeus issues
+   a token, DataForSEO reads the balance. Nothing creates, publishes or deletes.
+2. **No secrets in the result.** Messages are shown in the browser and stored in
+   `Integration.lastError`, so provider error bodies are scrubbed of anything
+   token-shaped first.
+3. **Honest outcomes.** `OK` / `FAILED` / `NOT_CONFIGURED` / `NOT_TESTABLE` are
+   distinct. "Not configured" never reports as "connection failed", and a
+   provider with nothing to reach reports `NOT_TESTABLE` rather than passing.
+
+Probes also check what the credential can actually *do*: a GitHub token that can
+read but not write reports "publishing would fail" rather than a green tick.
+
+### The four added providers
+
+| Provider | Credentials | Settings | Env fallback |
+| --- | --- | --- | --- |
+| `github` | `token` | `owner`, `repo`, `branch`, `contentPath` | none — database only |
+| `google_sheets` | `serviceAccountJson` | `spreadsheetId`, `sheetName` | `GOOGLE_SERVICE_ACCOUNT_JSON` |
+| `semrush` | `apiKey` | `database` | none — database only |
+| `ahrefs` | `apiKey` | `country` | none — database only |
+
+Three carry no `envVar`, which is what let this ship without touching
+`src/core/config/env.ts`: `envValue()` returns `""` for an undeclared name, so an
+omitted `envVar` is inert by construction.
+
+### Google authentication — service account, not OAuth
+
+There is **no OAuth infrastructure** in this app: no redirect route, no consent
+flow, no PKCE, no refresh loop. Google Sheets, Search Console and GA4 therefore
+authenticate with a **service account JSON**, signed into a short-lived token by
+`src/integrations/clients/google-auth.ts`.
+
+Share the spreadsheet or grant the property with the service account's
+`client_email` — the connection test tells you that address when it gets a 403.
+
+`googleAccessToken()` is the seam for OAuth later: everything that calls a Google
+API asks it for a bearer token and does not care where the token came from.
+Adding a refresh-token grant means a branch in that one function, not a change to
+any caller. Access tokens are cached in process and deliberately **not** written
+to `ProviderCache`, which is for provider responses, not credentials.
+
+### Tools
+
+```
+Agent  ->  Tool  ->  Integration  ->  Secret
+```
+
+| Tool | Capability | Holder |
+| --- | --- | --- |
+| `github.publish` | `publish` | Publishing Agent only |
+| `github.unpublish` | `unpublish` | Publishing Agent only |
+| `google_sheets.read` | `call_external_api` | Master Orchestrator |
+| `google_sheets.update` | `call_external_api` | Master Orchestrator |
+
+No new capability was invented — `publish` and `call_external_api` already
+existed. The Keyword Research Agent cannot reach GitHub, and `executeTool`
+refuses it even if the tool key is known.
+
+None of the four allow a mock fallback. A publish that did not happen must never
+look like one that did.
+
+**Sheets as a job queue.** The column layout is not fixed: the header row is read
+and used to key each record, so a customer's own sheet works unchanged.
+`google_sheets.update` addresses cells by row number and column *name*, and
+refuses rather than guessing if a named column is absent. Row 1 is never written.
+
+### SEO providers
+
+`keyword.discover` selects DataForSEO → Semrush → Ahrefs → synthetic corpus, all
+behind the one `KeywordProvider` interface. The agent contains no provider logic
+and no credentials.
+
+> **Semrush and Ahrefs are implemented but unverified.** Both clients are written
+> against published API docs and have never been executed against the live
+> services, because no credentials exist here. Request shapes and response
+> parsing are unproven. They fail loudly rather than returning an empty list that
+> would look like "no keywords found", and never fall back to synthetic numbers.
+> The tool's `note` says so at runtime, so it reaches the dashboard.
+
+### Known defect: credential scoping
+
+`POST /api/integrations` stores credentials with **no** `projectId`, so they land
+on the org-wide row. But `executeTool` resolves them with `ctx.projectId`, and
+`resolveCredentials` matches `projectId: projectId ?? null` exactly — so the
+org-wide row is invisible to it.
+
+**A provider connected through the dashboard is therefore not visible to the
+agents that need it.** `listIntegrations` uses an `OR` over both, so the UI shows
+it as connected, which is what makes this easy to miss.
+
+This predates the Integrations Center and was not introduced by it, so it has not
+been changed. Both halves are pinned by tests in
+`tests/integrations-center.test.ts` under "KNOWN DEFECT". The minimal fix is to
+give `resolveCredentials` the same org-wide fallback `listIntegrations` already
+has; delete those tests when it lands.
+
+Until then, credentials set via **environment variables** work normally — that
+path is unaffected.

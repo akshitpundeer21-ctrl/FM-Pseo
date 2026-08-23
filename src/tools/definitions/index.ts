@@ -9,6 +9,7 @@ import "@/tools/definitions/research";
 import "@/tools/definitions/data";
 import "@/tools/definitions/technical";
 import "@/tools/definitions/publishing";
+import "@/tools/definitions/integrations";
 
 export { describeTools, executeTool, getTool, listTools } from "@/tools/registry";
 
@@ -27,4 +28,8 @@ export const TOOL_KEYS = {
   unpublish: "cms.unpublish",
   searchPerformance: "analytics.search_performance",
   aiVisibilityProbe: "ai_visibility.probe",
+  githubPublish: "github.publish",
+  githubUnpublish: "github.unpublish",
+  sheetsRead: "google_sheets.read",
+  sheetsUpdate: "google_sheets.update",
 } as const;

@@ -35,6 +35,7 @@ An honest inventory. If something is not in the "implemented" list, assume it is
   (fare panel, fare options, price chart, destination highlights, photography) gated on real data — see
   [PUBLISHED-PAGES.md](PUBLISHED-PAGES.md)
 - Publish-time link rebasing so internal links and structured data both resolve where the site is served
+- Integrations Center: 15 catalogued providers with connect / test-connection / disconnect, encrypted credentials never returned to the browser, read-only connection probes, GitHub + Google Sheets tools behind the Control Plane, and Semrush/Ahrefs adapters (implemented, unverified against the live APIs)
 - Travel Data Layer: 10 normalized models (countries, regions, cities, airports, airlines, routes,
   route-carrier links, destinations, travel policies, provider cache) with nine provenance columns each,
   a provider adapter interface, a re-runnable ingest that never downgrades real data, and a credential-safe
@@ -67,7 +68,7 @@ An honest inventory. If something is not in the "implemented" list, assume it is
 
 ### Interface
 - 23 dashboard sections, all rendering live data
-- 175 passing tests (unit, integration, end-to-end, skill management, published pages, travel data layer)
+- 206 passing tests (unit, integration, end-to-end, skill management, published pages, travel data layer, integrations center)
 
 ---
 

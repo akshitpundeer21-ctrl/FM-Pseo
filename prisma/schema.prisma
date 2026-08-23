@@ -1158,7 +1158,7 @@ model Integration {
   organizationId String
   projectId      String?
   provider       String
-  /// LLM | KEYWORD_DATA | SEARCH_CONSOLE | ANALYTICS | CMS | TRAVEL_DATA | CRAWLER | AI_VISIBILITY
+  /// LLM | KEYWORD_DATA | SEARCH_CONSOLE | ANALYTICS | CMS | TRAVEL_DATA | CRAWLER | AI_VISIBILITY | WORKFLOW_SOURCE
   category       String
   name           String
   /// NOT_CONFIGURED | CONFIGURED | ERROR | DISABLED

@@ -278,7 +278,10 @@ export const SKILL_EXTRAS: Record<string, SkillExtras> = {
   },
 
   orchestration_planning: {
-    allowedTools: ["llm.generate", "travel.reference"],
+    // Includes the Sheets tools because effective tools are the INTERSECTION of
+    // the agent allowlist and what its skills declare: omitting them here would
+    // silently revoke the grant the agent was just given.
+    allowedTools: ["llm.generate", "travel.reference", "google_sheets.read", "google_sheets.update"],
     inputs: [
       str("objective", "The business objective to interpret."),
       str("context", "Any extra operator context.", false),

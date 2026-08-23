@@ -12,7 +12,8 @@ import { DynamicDataEngine } from "@/engine/data/engine";
 import { AmadeusAdapter } from "@/engine/data/adapters/amadeus";
 import { loadAirlines, loadAirports, loadRoutes } from "@/engine/data/adapters/static-dataset";
 
-const DataPointSchema = z.object({
+/** Exported so a test can pin it against the DataPoint interface it mirrors. */
+export const DataPointSchema = z.object({
   path: z.string(),
   value: z.unknown(),
   unit: z.string().optional(),

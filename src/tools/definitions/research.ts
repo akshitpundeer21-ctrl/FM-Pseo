@@ -4,6 +4,8 @@
 import { z } from "zod";
 import { registerTool } from "@/tools/registry";
 import { DataForSeoProvider, MockKeywordProvider, type KeywordProvider } from "@/modules/keywords/providers";
+import { AhrefsProvider, SemrushProvider } from "@/modules/keywords/seo-providers";
+import { resolveCredentials } from "@/integrations/service";
 import { loadCompetitors } from "@/engine/data/adapters/static-dataset";
 import { SearchIntentSchema } from "@/core/types/enums";
 
@@ -59,6 +61,25 @@ export const keywordDiscoverTool = registerTool({
       if (real.isConfigured()) {
         provider = real;
         note = "Live DataForSEO search-volume data.";
+      }
+    }
+
+    // Semrush and Ahrefs are alternative sources behind the same interface.
+    // DataForSEO stays first because it is the only one of the three that has
+    // actually been exercised; these two are implemented but unverified against
+    // the live APIs, which is recorded in the note so it reaches the UI.
+    if (provider.isMock) {
+      for (const alt of [
+        { key: "semrush", make: (v: Record<string, string>, s: Record<string, string>) => new SemrushProvider(v.apiKey, s.database || "us") },
+        { key: "ahrefs", make: (v: Record<string, string>, s: Record<string, string>) => new AhrefsProvider(v.apiKey, s.country || "us") },
+      ]) {
+        const resolved = await resolveCredentials(ctx.organizationId, alt.key, ctx.projectId).catch(() => null);
+        if (!resolved?.configured) continue;
+        const candidate = alt.make(resolved.values, resolved.settings);
+        if (!candidate.isConfigured()) continue;
+        provider = candidate;
+        note = `Live ${alt.key} data. This adapter has not been verified against the live API - check the rows before relying on them.`;
+        break;
       }
     }
     if (provider.isMock) ctx.markMock();

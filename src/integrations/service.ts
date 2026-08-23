@@ -174,6 +174,73 @@ export async function deleteCredential(organizationId: string, provider: string,
   return { ok: true };
 }
 
+/**
+ * Fully disconnect a provider: remove every stored secret, clear its settings
+ * and mark it disabled.
+ *
+ * Distinct from deleteCredential, which removes one key and leaves the rest in
+ * place. That contract is unchanged - the shipped dashboard depends on it.
+ *
+ * DISABLED rather than NOT_CONFIGURED is deliberate: it records that an
+ * operator turned this off, so an env-var fallback silently taking over reads
+ * as the deliberate choice it is rather than looking like it was never set up.
+ */
+export async function disconnectIntegration(
+  organizationId: string,
+  provider: string,
+  projectId?: string,
+): Promise<{ ok: true; removedCredentials: number }> {
+  const integration = await prisma.integration.findFirst({
+    where: { organizationId, provider, projectId: projectId ?? null },
+  });
+  if (!integration) return { ok: true, removedCredentials: 0 };
+
+  const { count } = await prisma.credential.deleteMany({ where: { integrationId: integration.id } });
+  await prisma.integration.update({
+    where: { id: integration.id },
+    data: { status: "DISABLED", isMock: true, configJson: "{}", lastError: null, lastCheckedAt: new Date() },
+  });
+
+  log.warn("integration disconnected", { provider, organizationId, removedCredentials: count });
+  return { ok: true, removedCredentials: count };
+}
+
+/** Re-enable a disconnected provider without re-entering credentials it still holds. */
+export async function enableIntegration(organizationId: string, provider: string, projectId?: string) {
+  const integration = await prisma.integration.findFirst({
+    where: { organizationId, provider, projectId: projectId ?? null },
+  });
+  if (!integration) return { ok: true };
+  const remaining = await prisma.credential.count({ where: { integrationId: integration.id } });
+  await prisma.integration.update({
+    where: { id: integration.id },
+    data: { status: remaining ? "CONFIGURED" : "NOT_CONFIGURED", isMock: remaining === 0 },
+  });
+  return { ok: true };
+}
+
+/** Records the outcome of a connection test on the integration row. */
+export async function recordConnectionTest(
+  organizationId: string,
+  provider: string,
+  result: { ok: boolean; message: string },
+  projectId?: string,
+) {
+  const integration = await prisma.integration.findFirst({
+    where: { organizationId, provider, projectId: projectId ?? null },
+  });
+  if (!integration) return;
+  await prisma.integration.update({
+    where: { id: integration.id },
+    data: {
+      lastCheckedAt: new Date(),
+      // A failed test must not silently clear a DISABLED state.
+      status: integration.status === "DISABLED" ? "DISABLED" : result.ok ? "CONFIGURED" : "ERROR",
+      lastError: result.ok ? null : result.message.slice(0, 500),
+    },
+  });
+}
+
 export async function setIntegrationSettings(
   organizationId: string,
   provider: string,
