@@ -26,6 +26,8 @@ import { loadCompetitors } from "../src/engine/data/adapters/static-dataset";
 import { defaultPromptLibrary } from "../src/modules/ai-visibility/platforms";
 import { INTEGRATION_CATALOG } from "../src/integrations/catalog";
 import { DEFAULT_ROUTE_POLICY } from "../src/agents/content-strategy.agent";
+import { BundledReferenceProvider } from "../src/modules/travel/providers/bundled";
+import { ingestFromProvider } from "../src/modules/travel/ingest";
 
 const DEMO_EMAIL = "admin@faresmatch.local";
 const DEMO_PASSWORD = "faresmatch-demo-2026";
@@ -287,6 +289,16 @@ async function main() {
     });
   }
   console.log(`  page families ${families.length} (1 active: route)`);
+
+  // --- travel data layer ----------------------------------------------------
+  // Normalizes the bundled reference files into the travel tables. Safe to
+  // re-run: a lower-trust source never overwrites a higher-trust one, so this
+  // will not clobber anything ingested from a credentialed provider.
+  const travel = await ingestFromProvider(new BundledReferenceProvider());
+  const travelTotal = Object.values(travel.counts).reduce((n, c) => n + c.created + c.updated, 0);
+  console.log(
+    `  travel data   ${travelTotal} rows across ${Object.keys(travel.counts).length} entities (reference data, isMock)`,
+  );
 
   // --- data sources --------------------------------------------------------
   const dataSources = [

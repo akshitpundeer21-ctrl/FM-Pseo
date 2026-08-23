@@ -159,9 +159,10 @@ panel states plainly that there are no live results.
 | `npm run dev` | Start the app on http://localhost:3000 |
 | `npm run setup` | Generate the Prisma client, apply migrations, seed configuration |
 | `npm run seed` | Re-seed configuration (idempotent) |
+| `npx tsx scripts/ingest-travel.ts` | Populate the Travel Data Layer from the bundled reference dataset |
 | `npm run build` | Production build into `.next` |
 | `npm run build:check` | Verification build into `.next-build` — safe to run while `npm run dev` is up |
-| `npm test` | Run all 139 tests |
+| `npm test` | Run all 175 tests |
 | `npm run e2e` | Drive the full pipeline from the terminal |
 | `npm run typecheck` | TypeScript, no emit |
 | `npm start` | Serve the production build |
@@ -216,6 +217,7 @@ If none of those apply, check for a second dev server squatting on the port
 | [docs/AGENTS.md](docs/AGENTS.md) | Every agent: role, skills, tools, capabilities, contracts |
 | [docs/SKILLS.md](docs/SKILLS.md) | The skill library and how skills compose with brand knowledge |
 | [docs/SKILL-MANAGEMENT.md](docs/SKILL-MANAGEMENT.md) | Versioning, activation, rollback, assignment, the sandbox and skill permissions |
+| [docs/TRAVEL-DATA-LAYER.md](docs/TRAVEL-DATA-LAYER.md) | Normalized travel entities, provenance, provider adapters, the cache, and how it plugs into data.resolve |
 | [docs/PUBLISHED-PAGES.md](docs/PUBLISHED-PAGES.md) | What a published page looks like, which blocks need a provider, and link integrity |
 | [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md) | Every integration, the exact credentials it needs, and what breaks without it |
 | [docs/API.md](docs/API.md) | HTTP API reference |

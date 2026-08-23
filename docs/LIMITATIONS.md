@@ -35,6 +35,10 @@ An honest inventory. If something is not in the "implemented" list, assume it is
   (fare panel, fare options, price chart, destination highlights, photography) gated on real data — see
   [PUBLISHED-PAGES.md](PUBLISHED-PAGES.md)
 - Publish-time link rebasing so internal links and structured data both resolve where the site is served
+- Travel Data Layer: 10 normalized models (countries, regions, cities, airports, airlines, routes,
+  route-carrier links, destinations, travel policies, provider cache) with nine provenance columns each,
+  a provider adapter interface, a re-runnable ingest that never downgrades real data, and a credential-safe
+  provider cache - see [TRAVEL-DATA-LAYER.md](TRAVEL-DATA-LAYER.md)
 - Template system with per-block conditions, overrides and content-source classification
 - Safe expression evaluator (purpose-built parser, never `eval`)
 - Dynamic Data Engine with provenance on every value and a hard rule against mock sources for
@@ -63,7 +67,7 @@ An honest inventory. If something is not in the "implemented" list, assume it is
 
 ### Interface
 - 23 dashboard sections, all rendering live data
-- 139 passing tests (unit, integration, end-to-end, skill management, published pages)
+- 175 passing tests (unit, integration, end-to-end, skill management, published pages, travel data layer)
 
 ---
 
@@ -155,6 +159,12 @@ is not up, a crawl of `/site/*` correctly records a fetch failure rather than in
 
 **Regex HTML parsing.** The crawler uses regex rather than a DOM parser. Sufficient for head/link/heading
 signals; it would need a real parser for anything requiring accurate DOM semantics.
+
+**The Travel Data Layer holds reference data only.** Every row was ingested from the bundled approximate
+dataset and stays marked `isMock`. It has never been populated from a credentialed provider, because none
+is connected. Countries are derived from the airports present (10), not a full ISO list, and no regions or
+travel policies are seeded at all - inventing visa or baggage rules is exactly what this system refuses to
+do.
 
 **Mock keyword volumes are synthetic.** They are plausible enough to exercise scoring and clustering. They
 are not measurements and must never be reported as such.

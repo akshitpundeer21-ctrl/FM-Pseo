@@ -17,6 +17,7 @@ import { scopedLogger } from "@/core/logging/logger";
 import { resolveCredentials } from "@/integrations/service";
 import { AmadeusAdapter } from "@/engine/data/adapters/amadeus";
 import { StaticDatasetAdapter } from "@/engine/data/adapters/static-dataset";
+import { TravelDbAdapter } from "@/engine/data/adapters/travel-db";
 import type { DataContext, DataPoint, DataSourceAdapter } from "@/engine/data/types";
 import { materialise } from "@/engine/data/types";
 
@@ -45,6 +46,12 @@ export class DynamicDataEngine {
     if (amadeus?.configured) {
       adapters.push(new AmadeusAdapter(amadeus.values.clientId, amadeus.values.clientSecret));
     }
+
+    // The Travel Data Layer sits between credentialed providers and the bundled
+    // files: normalized rows win where they exist, and a miss falls straight
+    // through to the static dataset, so an empty layer behaves exactly as the
+    // system did before it was added.
+    adapters.push(new TravelDbAdapter());
 
     adapters.push(new StaticDatasetAdapter());
     return new DynamicDataEngine(adapters, projectId);

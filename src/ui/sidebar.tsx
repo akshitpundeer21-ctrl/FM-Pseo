@@ -18,6 +18,7 @@ import {
   LayoutTemplate,
   Link2,
   ListTodo,
+  Plane,
   Plug,
   Radar,
   ScrollText,
@@ -46,6 +47,7 @@ const SECTIONS: { label: string; items: { href: string; label: string; icon: Rea
       { href: "/keywords", label: "Keywords", icon: Target },
       { href: "/opportunities", label: "Opportunities", icon: Radar },
       { href: "/competitors", label: "Competitors", icon: Building2 },
+      { href: "/travel-data", label: "Travel data", icon: Plane },
     ],
   },
   {

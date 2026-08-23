@@ -1367,3 +1367,378 @@ model FlightSearch {
 
   @@index([projectId, createdAt])
 }
+
+// ===========================================================================
+// TRAVEL DATA LAYER
+//
+// A normalized, provenance-carrying source of truth for travel reference data.
+// Deliberately GLOBAL rather than project-scoped: an airport is the same airport
+// for every tenant, and duplicating it per project would fragment provenance.
+//
+// Every entity carries the same provenance columns, mirroring the `Fact` model:
+//   source / sourceType / sourceUrl / provider / providerRecordId
+//   confidence / isMock / retrievedAt / expiresAt / lastVerifiedAt
+//
+// `isMock` is load-bearing, not cosmetic: rows ingested from the bundled
+// approximate dataset keep isMock = true forever, so the honesty guarantees the
+// rest of the OS depends on survive the move from files into tables.
+//
+// No model above this line was modified to add this section.
+// ===========================================================================
+
+model Country {
+  id           String  @id @default(cuid())
+  name         String
+  officialName String?
+  /// ISO 3166-1 alpha-2, uppercase.
+  iso2         String  @unique
+  /// ISO 3166-1 alpha-3, uppercase.
+  iso3         String?
+  continent    String?
+  region       String?
+  currencyCode String?
+  /// ACTIVE | INACTIVE | DEPRECATED
+  status       String  @default("ACTIVE")
+
+  source           String    @default("")
+  /// STATIC_DATASET | PROVIDER_API | MANUAL | CRAWL
+  sourceType       String    @default("STATIC_DATASET")
+  sourceUrl        String?
+  provider         String?
+  providerRecordId String?
+  confidence       Float     @default(0.6)
+  isMock           Boolean   @default(true)
+  retrievedAt      DateTime  @default(now())
+  expiresAt        DateTime?
+  lastVerifiedAt   DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  regions      Region[]
+  cities       City[]
+  airports     Airport[]
+  airlines     Airline[]
+  destinations Destination[]
+
+  @@index([status])
+}
+
+/// States, provinces and administrative regions.
+model Region {
+  id        String  @id @default(cuid())
+  countryId String
+  name      String
+  code      String?
+  /// STATE | PROVINCE | REGION | TERRITORY | PREFECTURE | OTHER
+  type      String  @default("REGION")
+  /// ACTIVE | INACTIVE
+  status    String  @default("ACTIVE")
+
+  source           String    @default("")
+  sourceType       String    @default("STATIC_DATASET")
+  sourceUrl        String?
+  provider         String?
+  providerRecordId String?
+  confidence       Float     @default(0.6)
+  isMock           Boolean   @default(true)
+  retrievedAt      DateTime  @default(now())
+  expiresAt        DateTime?
+  lastVerifiedAt   DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  country Country @relation(fields: [countryId], references: [id], onDelete: Cascade)
+  cities  City[]
+
+  @@unique([countryId, name])
+  @@index([countryId])
+}
+
+model City {
+  id          String  @id @default(cuid())
+  name        String
+  countryId   String
+  regionId    String?
+  latitude    Float?
+  longitude   Float?
+  timezone    String?
+  population  Int?
+  /// Alternate names and spellings, JSON string[].
+  aliasesJson String  @default("[]")
+  /// ACTIVE | INACTIVE
+  status      String  @default("ACTIVE")
+
+  source           String    @default("")
+  sourceType       String    @default("STATIC_DATASET")
+  sourceUrl        String?
+  provider         String?
+  providerRecordId String?
+  confidence       Float     @default(0.6)
+  isMock           Boolean   @default(true)
+  retrievedAt      DateTime  @default(now())
+  expiresAt        DateTime?
+  lastVerifiedAt   DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  country Country @relation(fields: [countryId], references: [id], onDelete: Cascade)
+  region  Region? @relation(fields: [regionId], references: [id], onDelete: SetNull)
+
+  /// Airports serving this city. The spec's `airport_ids` is this relation,
+  /// kept normalized rather than denormalized into a JSON column.
+  airports          Airport[]
+  destinations      Destination[]
+  originRoutes      Route[]       @relation("RouteOriginCity")
+  destinationRoutes Route[]       @relation("RouteDestinationCity")
+
+  @@unique([countryId, name])
+  @@index([name])
+}
+
+model Airport {
+  id          String  @id @default(cuid())
+  name        String
+  /// IATA 3-letter code, uppercase. The system's primary airport key.
+  iata        String  @unique
+  /// ICAO 4-letter code, uppercase.
+  icao        String?
+  cityId      String?
+  countryId   String?
+  latitude    Float?
+  longitude   Float?
+  timezone    String?
+  /// INTERNATIONAL | DOMESTIC | REGIONAL | HELIPORT | OTHER
+  type        String  @default("INTERNATIONAL")
+  terminals   Int?
+  isHub       Boolean @default(false)
+  aliasesJson String  @default("[]")
+  /// ACTIVE | INACTIVE | CLOSED
+  status      String  @default("ACTIVE")
+
+  source           String    @default("")
+  sourceType       String    @default("STATIC_DATASET")
+  sourceUrl        String?
+  provider         String?
+  providerRecordId String?
+  confidence       Float     @default(0.6)
+  isMock           Boolean   @default(true)
+  retrievedAt      DateTime  @default(now())
+  expiresAt        DateTime?
+  lastVerifiedAt   DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  city              City?    @relation(fields: [cityId], references: [id], onDelete: SetNull)
+  country           Country? @relation(fields: [countryId], references: [id], onDelete: SetNull)
+  originRoutes      Route[]  @relation("RouteOriginAirport")
+  destinationRoutes Route[]  @relation("RouteDestinationAirport")
+
+  @@index([cityId])
+  @@index([countryId])
+}
+
+model Airline {
+  id        String  @id @default(cuid())
+  name      String
+  /// IATA 2-letter code, uppercase.
+  iata      String? @unique
+  /// ICAO 3-letter code, uppercase.
+  icao      String?
+  countryId String?
+  callsign  String?
+  alliance  String?
+  /// FULL_SERVICE | LOW_COST | REGIONAL | CHARTER | CARGO | OTHER
+  type      String  @default("FULL_SERVICE")
+  /// Hub airport IATA codes, JSON string[].
+  hubsJson  String  @default("[]")
+  /// ACTIVE | INACTIVE | CEASED
+  status    String  @default("ACTIVE")
+
+  source           String    @default("")
+  sourceType       String    @default("STATIC_DATASET")
+  sourceUrl        String?
+  provider         String?
+  providerRecordId String?
+  confidence       Float     @default(0.6)
+  isMock           Boolean   @default(true)
+  retrievedAt      DateTime  @default(now())
+  expiresAt        DateTime?
+  lastVerifiedAt   DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  country Country?       @relation(fields: [countryId], references: [id], onDelete: SetNull)
+  routes  RouteAirline[]
+
+  @@index([countryId])
+}
+
+/// An airport pair. One row per pair - carriers hang off RouteAirline rather
+/// than the route being duplicated per airline or per provider.
+model Route {
+  id                     String  @id @default(cuid())
+  originAirportId        String
+  destinationAirportId   String
+  originCityId           String?
+  destinationCityId      String?
+  /// NONSTOP | ONE_STOP | MULTI_STOP | MIXED
+  routeType              String  @default("MIXED")
+  distanceKm             Float?
+  typicalDurationMinutes Int?
+  typicalStops           Int?
+  nonstopAvailable       Boolean @default(false)
+  /// Weekly departures, when a source publishes them.
+  frequency              Int?
+  /// Cabin classes observed, JSON string[].
+  cabinClassesJson       String  @default("[]")
+  /// ACTIVE | INACTIVE | SEASONAL | SUSPENDED
+  status                 String  @default("ACTIVE")
+
+  source           String    @default("")
+  sourceType       String    @default("STATIC_DATASET")
+  sourceUrl        String?
+  provider         String?
+  providerRecordId String?
+  confidence       Float     @default(0.6)
+  isMock           Boolean   @default(true)
+  /// How distance/duration were derived. Estimates are never served as schedules.
+  method           String?
+  retrievedAt      DateTime  @default(now())
+  expiresAt        DateTime?
+  lastVerifiedAt   DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  originAirport      Airport        @relation("RouteOriginAirport", fields: [originAirportId], references: [id], onDelete: Cascade)
+  destinationAirport Airport        @relation("RouteDestinationAirport", fields: [destinationAirportId], references: [id], onDelete: Cascade)
+  originCity         City?          @relation("RouteOriginCity", fields: [originCityId], references: [id], onDelete: SetNull)
+  destinationCity    City?          @relation("RouteDestinationCity", fields: [destinationCityId], references: [id], onDelete: SetNull)
+  airlines           RouteAirline[]
+
+  @@unique([originAirportId, destinationAirportId])
+  @@index([originCityId, destinationCityId])
+}
+
+/// Which carriers operate a route, and on whose authority.
+model RouteAirline {
+  id          String  @id @default(cuid())
+  routeId     String
+  airlineId   String
+  /// NONSTOP | ONE_STOP | MULTI_STOP
+  serviceType String  @default("NONSTOP")
+  frequency   Int?
+  /// ACTIVE | SEASONAL | SUSPENDED
+  status      String  @default("ACTIVE")
+
+  source           String   @default("")
+  sourceType       String   @default("STATIC_DATASET")
+  provider         String?
+  providerRecordId String?
+  confidence       Float    @default(0.6)
+  isMock           Boolean  @default(true)
+  retrievedAt      DateTime @default(now())
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  route   Route   @relation(fields: [routeId], references: [id], onDelete: Cascade)
+  airline Airline @relation(fields: [airlineId], references: [id], onDelete: Cascade)
+
+  @@unique([routeId, airlineId])
+  @@index([airlineId])
+}
+
+/// Destination-level editorial and travel attributes for a city.
+model Destination {
+  id                   String @id @default(cuid())
+  cityId               String
+  countryId            String?
+  name                 String
+  description          String @default("")
+  aliasesJson          String @default("[]")
+  /// Best months, climate, currency, languages, tags - JSON object.
+  travelAttributesJson String @default("{}")
+  /// ACTIVE | INACTIVE
+  status               String @default("ACTIVE")
+
+  source           String    @default("")
+  sourceType       String    @default("STATIC_DATASET")
+  sourceUrl        String?
+  provider         String?
+  providerRecordId String?
+  confidence       Float     @default(0.6)
+  isMock           Boolean   @default(true)
+  retrievedAt      DateTime  @default(now())
+  expiresAt        DateTime?
+  lastVerifiedAt   DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  city    City     @relation(fields: [cityId], references: [id], onDelete: Cascade)
+  country Country? @relation(fields: [countryId], references: [id], onDelete: SetNull)
+
+  @@unique([cityId, name])
+  @@index([countryId])
+}
+
+/// Visa, passport, baggage, airport, airline, advisory and entry rules.
+///
+/// Policies are time-sensitive by nature. A row that is mock, expired or never
+/// verified must not be published as authoritative - this layer carries the
+/// provenance and lets the existing fact gate decide.
+model TravelPolicy {
+  id             String  @id @default(cuid())
+  /// VISA | PASSPORT | BAGGAGE | AIRPORT_RULE | AIRLINE_POLICY | ADVISORY | ENTRY_REQUIREMENT
+  policyType     String
+  /// COUNTRY | AIRLINE | AIRPORT | ROUTE | CITY
+  subjectType    String
+  /// Natural key of the subject: an ISO2, IATA code or route id.
+  subjectKey     String
+  /// Optional second party, e.g. the passport-holder nationality for a visa rule.
+  counterpartKey String?
+  title          String
+  body           String  @default("")
+  /// Structured detail (allowances, fees, durations) as a JSON object.
+  detailJson     String  @default("{}")
+  effectiveFrom  DateTime?
+  effectiveTo    DateTime?
+  /// ACTIVE | SUPERSEDED | WITHDRAWN
+  status         String  @default("ACTIVE")
+
+  source           String    @default("")
+  sourceType       String    @default("MANUAL")
+  sourceUrl        String?
+  provider         String?
+  providerRecordId String?
+  confidence       Float     @default(0.4)
+  isMock           Boolean   @default(true)
+  retrievedAt      DateTime  @default(now())
+  expiresAt        DateTime?
+  lastVerifiedAt   DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  @@unique([policyType, subjectType, subjectKey, counterpartKey])
+  @@index([subjectType, subjectKey])
+}
+
+/// Provider response cache. Never stores credentials - only the credential-free
+/// request shape that produced a response, hashed, plus the body and its TTL.
+model ProviderCache {
+  id                String   @id @default(cuid())
+  provider          String
+  namespace         String
+  /// SHA-256 of provider + namespace + canonicalised params.
+  requestHash       String   @unique
+  /// Canonicalised, credential-free request parameters.
+  requestParamsJson String   @default("{}")
+  responseJson      String   @default("{}")
+  /// FRESH | STALE | ERROR
+  status            String   @default("FRESH")
+  error             String?
+  hits              Int      @default(0)
+  createdAt         DateTime @default(now())
+  expiresAt         DateTime
+
+  @@index([provider, namespace])
+  @@index([expiresAt])
+}
