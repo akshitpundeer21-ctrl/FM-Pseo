@@ -14,6 +14,7 @@ import { loadRoutes, StaticDatasetAdapter } from "@/engine/data/adapters/static-
 import { TravelDbAdapter } from "@/engine/data/adapters/travel-db";
 import { materialise, type DataPoint } from "@/engine/data/types";
 import { MockLlmProvider } from "@/llm/providers/mock";
+import { DEFAULT_BRAND } from "@/modules/brand/brand";
 import { env } from "@/core/config/env";
 import fs from "node:fs/promises";
 import path from "node:path";
@@ -42,7 +43,7 @@ async function main() {
 
   // Resolve data through adapters directly (TravelDb first, static fallback)
   const adapters = [new TravelDbAdapter(), new StaticDatasetAdapter()];
-  const requests = [
+  const requests: { namespace: string; params: Record<string, string> }[] = [
     { namespace: "route", params: { origin, destination } },
     { namespace: "airport", params: { iata: origin, prefix: "origin" } },
     { namespace: "airport", params: { iata: destination, prefix: "destination" } },
@@ -98,14 +99,8 @@ async function main() {
     url,
     variables,
     blocks,
-    data: { values, points, containsMock: points.some((p) => p.isMock) },
-    brand: {
-      brandName: "FaresMatch",
-      domain: "faresmatch.com",
-      aeoRules: { answerWordsMin: 35, answerWordsMax: 70, placementTarget: "high" },
-      seoRules: { titleMaxChars: 60, metaMaxChars: 158 },
-      contentRules: { minWordCount: 800, maxWordCount: 2500, readingLevelTarget: "simple", toneKeywords: ["helpful", "clear", "factual"] },
-    },
+    data: { values, points, missing: [], containsMock: points.some((p) => p.isMock) },
+    brand: { ...DEFAULT_BRAND, brandName: "FaresMatch", version: 1 },
     relatedRoutes: siblings,
     relatedAirports: [
       { url: `/airports/${origin.toLowerCase()}`, label: `${route.originCity} airport (${origin})` },
