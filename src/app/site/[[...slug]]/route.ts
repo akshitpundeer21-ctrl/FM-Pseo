@@ -1,9 +1,7 @@
 /**
- * Serves the pages the local_static publishing adapter wrote to disk.
- *
- * This makes publishing REAL in local development: the Publishing Agent writes
- * a file, this route serves it over HTTP, and the Technical SEO Agent crawls it
- * back with a real fetch. Nothing is simulated in that loop.
+ * Serves published pages. Checks the database first (Page.publishedHtml),
+ * then falls back to the local filesystem for backward compatibility in
+ * local development.
  */
 import fs from "node:fs/promises";
 import path from "node:path";
@@ -16,16 +14,37 @@ export const dynamic = "force-dynamic";
 function safeJoin(base: string, segments: string[]): string | null {
   const target = path.resolve(base, ...segments);
   const root = path.resolve(base);
-  // Reject traversal outside the published directory.
   return target === root || target.startsWith(root + path.sep) ? target : null;
 }
 
 export async function GET(_req: Request, { params }: { params: Promise<{ slug?: string[] }> }) {
   const { slug } = await params;
+
+  if (!slug || slug.length === 0) return index();
+
+  const url = `/${slug.join("/")}`;
+
+  // 1. Try database (works on Vercel and local dev with PostgreSQL)
+  try {
+    const page = await prisma.page.findFirst({
+      where: { url, status: "PUBLISHED", publishedHtml: { not: null } },
+      select: { publishedHtml: true },
+    });
+    if (page?.publishedHtml) {
+      return new NextResponse(page.publishedHtml, {
+        status: 200,
+        headers: {
+          "content-type": "text/html; charset=utf-8",
+          "cache-control": "public, s-maxage=3600, stale-while-revalidate=86400",
+        },
+      });
+    }
+  } catch {
+    // DB unavailable or column missing — fall through to filesystem
+  }
+
+  // 2. Fall back to filesystem (local dev with local_static adapter)
   const baseDir = path.join(process.cwd(), env().PUBLISH_LOCAL_DIR);
-
-  if (!slug || slug.length === 0) return index(baseDir);
-
   const file = safeJoin(baseDir, [`${slug.join("/")}.html`]);
   if (!file) return new NextResponse("Not found", { status: 404 });
 
@@ -39,7 +58,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ slug?: 
     return new NextResponse(
       `<!doctype html><html><head><title>404 — not published</title><meta name="robots" content="noindex"></head><body style="font:15px system-ui;max-width:640px;margin:60px auto;padding:0 20px">
         <h1>404 — this page has not been published</h1>
-        <p>No file exists at <code>/${slug.join("/")}</code> in the local static site.</p>
+        <p>No page exists at <code>/${slug.join("/")}</code>.</p>
         <p><a href="/site">See what is published</a> · <a href="/content">Open the console</a></p>
       </body></html>`,
       { status: 404, headers: { "content-type": "text/html; charset=utf-8" } },
@@ -47,14 +66,14 @@ export async function GET(_req: Request, { params }: { params: Promise<{ slug?: 
   }
 }
 
-/** A simple index of everything published, so the site is browsable. */
-async function index(baseDir: string) {
+async function index() {
   const pages = await prisma.page.findMany({
     where: { status: "PUBLISHED" },
     orderBy: { publishedAt: "desc" },
     select: { url: true, title: true, publishedAt: true, qualityScore: true },
   });
 
+  const baseDir = path.join(process.cwd(), env().PUBLISH_LOCAL_DIR);
   let onDisk: string[] = [];
   try {
     onDisk = await walk(baseDir, baseDir);
@@ -78,7 +97,7 @@ async function index(baseDir: string) {
      a{color:#1f5eff;text-decoration:none;font-weight:600}.m{display:block;color:#6a7080;font-size:12.5px;font-weight:400}
      .empty{color:#6a7080}</style></head>
      <body><h1>Published pages</h1>
-     <p class="sub">Static output of the local_static publishing adapter (${onDisk.length} file${onDisk.length === 1 ? "" : "s"} on disk).</p>
+     <p class="sub">${onDisk.length} file${onDisk.length === 1 ? "" : "s"} on disk · ${pages.length} in database.</p>
      ${rows ? `<ul>${rows}</ul>` : '<p class="empty">Nothing published yet. Run a goal through the console and approve the publish step.</p>'}
      </body></html>`,
     { status: 200, headers: { "content-type": "text/html; charset=utf-8" } },
@@ -87,10 +106,14 @@ async function index(baseDir: string) {
 
 async function walk(dir: string, root: string): Promise<string[]> {
   const out: string[] = [];
-  for (const entry of await fs.readdir(dir, { withFileTypes: true })) {
-    const full = path.join(dir, entry.name);
-    if (entry.isDirectory()) out.push(...(await walk(full, root)));
-    else if (entry.name.endsWith(".html")) out.push(path.relative(root, full).split(path.sep).join("/"));
+  try {
+    for (const entry of await fs.readdir(dir, { withFileTypes: true })) {
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) out.push(...(await walk(full, root)));
+      else if (entry.name.endsWith(".html")) out.push(path.relative(root, full).split(path.sep).join("/"));
+    }
+  } catch {
+    // Directory doesn't exist (normal on Vercel)
   }
   return out;
 }

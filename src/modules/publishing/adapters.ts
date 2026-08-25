@@ -15,6 +15,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import crypto from "node:crypto";
 import { env } from "@/core/config/env";
+import { prisma } from "@/core/db/client";
 import { IntegrationNotConfiguredError, PublishError } from "@/core/errors";
 import { scopedLogger } from "@/core/logging/logger";
 import {
@@ -177,6 +178,56 @@ function escapeAttr(s: string): string {
 
 // ---------------------------------------------------------------------------
 
+/**
+ * Stores the rendered document in Page.publishedHtml so it can be served from
+ * the database. Used on Vercel where the filesystem is ephemeral.
+ */
+export class DatabaseAdapter implements PublishingAdapter {
+  readonly key = "database";
+  readonly name = "Database (serves from Page.publishedHtml)";
+
+  constructor(private readonly appUrl = env().APP_URL) {}
+
+  isConfigured() {
+    return true;
+  }
+
+  async publish(payload: PublishPayload): Promise<PublishOutcome> {
+    const canonical = payload.canonical ?? `${this.appUrl}/site/${sitePath(payload.url)}`;
+    const doc = renderDocument(
+      { ...payload, brand: { name: "FaresMatch", siteUrl: this.appUrl, ...payload.brand, basePath: "/site" } },
+      canonical,
+    );
+
+    const updated = await prisma.page.updateMany({
+      where: { url: payload.url, status: { not: "DELETED" } },
+      data: { publishedHtml: doc },
+    });
+
+    if (updated.count === 0) {
+      log.warn("database adapter: no page found for url, skipping DB write", { url: payload.url });
+    }
+
+    log.info("published to database", { url: payload.url, bytes: doc.length });
+    return {
+      remoteId: sitePath(payload.url),
+      remoteUrl: `${this.appUrl}/site/${sitePath(payload.url)}`,
+      adapter: this.key,
+      raw: { bytes: doc.length, pagesUpdated: updated.count },
+    };
+  }
+
+  async unpublish(remoteId: string): Promise<void> {
+    await prisma.page.updateMany({
+      where: { url: { contains: remoteId }, status: "PUBLISHED" },
+      data: { publishedHtml: null },
+    });
+    log.warn("unpublished from database", { remoteId });
+  }
+}
+
+// ---------------------------------------------------------------------------
+
 /** POSTs the page payload to a customer-owned endpoint, HMAC-signed. */
 export class WebhookAdapter implements PublishingAdapter {
   readonly key = "webhook";
@@ -296,6 +347,10 @@ export function selectAdapter(
   creds: { webhookUrl?: string; webhookSecret?: string; wpBaseUrl?: string; wpUser?: string; wpPassword?: string } = {},
 ): AdapterSelection {
   const local = new LocalStaticAdapter();
+
+  if (requested === "database") {
+    return { adapter: new DatabaseAdapter(), requested, fellBack: false, reason: "database adapter selected" };
+  }
 
   if (requested === "webhook") {
     const a = new WebhookAdapter(creds.webhookUrl || env().PUBLISH_WEBHOOK_URL, creds.webhookSecret || env().PUBLISH_WEBHOOK_SECRET);

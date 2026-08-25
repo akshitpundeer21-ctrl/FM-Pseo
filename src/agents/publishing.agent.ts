@@ -20,7 +20,7 @@ import { env } from "@/core/config/env";
 
 const InputSchema = z.object({
   pageVersionId: z.string(),
-  adapter: z.enum(["local_static", "webhook", "wordpress"]).optional(),
+  adapter: z.enum(["local_static", "database", "webhook", "wordpress"]).optional(),
   /** Publishing an update to an already-live page. */
   isUpdate: z.boolean().optional(),
 });
@@ -250,7 +250,7 @@ export async function rollbackPage(params: {
 
   const { selectAdapter } = await import("@/modules/publishing/adapters");
   const adapterKey = target.publishRecords[0]?.adapter ?? "local_static";
-  const selection = selectAdapter(adapterKey as "local_static" | "webhook" | "wordpress");
+  const selection = selectAdapter(adapterKey as "local_static" | "database" | "webhook" | "wordpress");
   const schemas = await prisma.schemaMarkup.findMany({ where: { pageId: page.id, validationStatus: "VALID" } });
 
   const outcome = await selection.adapter.publish({

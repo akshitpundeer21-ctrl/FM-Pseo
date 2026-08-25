@@ -21,6 +21,10 @@ const nextConfig: NextConfig = {
     // Keep server actions modest; the OS uses route handlers for orchestration.
     serverActions: { bodySizeLimit: "4mb" },
   },
+  outputFileTracingIncludes: {
+    "/api/**": ["./data/mock/**"],
+    "/site/**": ["./data/mock/**"],
+  },
 };
 
 export default nextConfig;

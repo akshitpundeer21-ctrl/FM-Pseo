@@ -1,9 +1,9 @@
 // =============================================================================
 // FaresMatch AI OS - Data model
 // -----------------------------------------------------------------------------
-// Provider is SQLite for zero-config local development. The schema deliberately
-// avoids provider-specific features (enums, native JSON, arrays) so the same
-// schema migrates to PostgreSQL by changing `provider` + DATABASE_URL only.
+// Provider is PostgreSQL. Deployed on Supabase for production (Vercel).
+// The schema avoids provider-specific features (enums, native JSON, arrays)
+// and uses String columns with Zod validation for portability.
 //
 // Conventions:
 //  * "<x>Json" columns hold JSON-encoded strings. Always read/write them through
@@ -815,6 +815,8 @@ model Page {
   qualityScore    Float     @default(0)
   qualityStatus   String    @default("PENDING")
   currentVersion  Int       @default(0)
+  /// Full rendered HTML document, stored on publish so Vercel can serve without filesystem.
+  publishedHtml   String?
   publishedAt     DateTime?
   unpublishedAt   DateTime?
   createdAt       DateTime  @default(now())

@@ -26,7 +26,7 @@ export const publishTool = registerTool({
   allowMockFallback: true,
   timeoutMs: 60_000,
   inputSchema: z.object({
-    adapter: z.enum(["local_static", "webhook", "wordpress"]).optional(),
+    adapter: z.enum(["local_static", "database", "webhook", "wordpress"]).optional(),
     payload: z.object({
       url: z.string(),
       title: z.string(),
@@ -97,7 +97,7 @@ export const unpublishTool = registerTool({
   category: "publishing",
   requiredCapability: "unpublish",
   allowMockFallback: true,
-  inputSchema: z.object({ adapter: z.enum(["local_static", "webhook", "wordpress"]), remoteId: z.string() }),
+  inputSchema: z.object({ adapter: z.enum(["local_static", "database", "webhook", "wordpress"]), remoteId: z.string() }),
   outputSchema: z.object({ ok: z.boolean(), adapterUsed: z.string() }),
   async execute(input, ctx) {
     const selection = selectAdapter(input.adapter);

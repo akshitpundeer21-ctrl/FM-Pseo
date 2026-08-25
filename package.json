@@ -20,7 +20,9 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "e2e": "tsx scripts/e2e-workflow.ts",
-    "check:env": "tsx scripts/check-env.ts"
+    "check:env": "tsx scripts/check-env.ts",
+    "postinstall": "prisma generate",
+    "vercel-build": "prisma generate && prisma db push && next build"
   },
   "prisma": {
     "seed": "tsx scripts/seed.ts"

@@ -20,33 +20,18 @@ with the wrong key fails closed with a clear error rather than returning garbage
 
 ## PostgreSQL
 
-The schema deliberately avoids provider-specific features, so migration is two edits.
-
-1. `prisma/schema.prisma`:
-
-```prisma
-datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
-}
-```
-
-2. `.env`:
+The schema already uses `provider = "postgresql"`. Set your connection string in `.env`:
 
 ```
 DATABASE_URL="postgresql://user:password@host:5432/faresmatch?schema=public&connection_limit=10"
 ```
 
-Then:
+Then push the schema and seed:
 
 ```bash
-rm -rf prisma/migrations
-npx prisma migrate dev --name init
+npx prisma db push
 npx tsx scripts/seed.ts
 ```
-
-(Regenerating the migration is the clean path because the initial SQLite migration contains
-SQLite-specific DDL. The schema itself is unchanged.)
 
 Consider adding, once you have traffic: partial indexes on `Page.status` and `Task.status`, and a
 retention policy for `LogEntry` and `AgentRun`.
@@ -101,12 +86,46 @@ publish to a CMS or object storage instead.
 
 ---
 
+## Vercel + Supabase
+
+The recommended serverless setup. Vercel runs the Next.js app; Supabase provides PostgreSQL.
+
+### Supabase setup
+
+1. Create a project at [supabase.com](https://supabase.com)
+2. Copy the **Connection string (Transaction)** from Settings → Database → Connection string
+3. It looks like: `postgresql://postgres.[ref]:[password]@aws-0-[region].pooler.supabase.com:6543/postgres`
+
+### Vercel setup
+
+1. Import the repo from GitHub
+2. Set environment variables in the Vercel project settings:
+
+| Variable | Value |
+| --- | --- |
+| `DATABASE_URL` | Supabase connection string |
+| `APP_URL` | `https://your-domain.vercel.app` |
+| `APP_ENCRYPTION_KEY` | Fresh 32-byte hex key |
+| `SESSION_SECRET` | Fresh 32-byte hex key |
+| `PUBLISH_ADAPTER` | `database` |
+| `DEMO_MODE` | `true` (or `false` with real provider keys) |
+| `NODE_ENV` | `production` |
+
+3. The build command is auto-detected (`vercel-build` script runs `prisma generate && prisma migrate deploy && next build`)
+4. First deploy creates the database tables via `prisma migrate deploy`
+
+### How published pages are served on Vercel
+
+`PUBLISH_ADAPTER=database` stores the full rendered HTML in `Page.publishedHtml`. The `/site/*` route
+reads from the database instead of the filesystem. Existing adapters (webhook, wordpress) continue to
+work alongside it.
+
+---
+
 ## Serverless notes
 
-The app runs on a serverless platform with two caveats:
-
-1. **`local_static` will not work** — there is no persistent writable filesystem. Use the `webhook` or
-   `wordpress` adapter, or add an object-storage adapter (a ~60-line `PublishingAdapter`).
+1. **`local_static` will not work on serverless** — there is no persistent writable filesystem. Use the
+   `database`, `webhook`, or `wordpress` adapter.
 2. **Workflow runs are long.** A full growth workflow takes 30–60 seconds, which exceeds some function
    timeouts. Move the engine behind a queue first (see below).
 
@@ -169,7 +188,7 @@ only WARN+ in the database.
 | `SESSION_TTL_HOURS` | Session lifetime (default 168) |
 | `DEMO_MODE` | Mock fallback on/off |
 | `DEFAULT_APPROVAL_MODE` | Approval posture for new projects |
-| `PUBLISH_ADAPTER` | `local_static` \| `webhook` \| `wordpress` |
+| `PUBLISH_ADAPTER` | `local_static` \| `database` \| `webhook` \| `wordpress` |
 | `PUBLISH_LOCAL_DIR` | Where `local_static` writes |
 | `AI_VISIBILITY_PLATFORMS` | Which answer engines to probe |
 | `CRAWLER_*` | User agent, page cap, concurrency, timeout |

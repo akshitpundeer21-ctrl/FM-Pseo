@@ -53,7 +53,9 @@ export default async function PublishingPage() {
           <p className="mt-1 text-[12px] text-[var(--color-ink-2)]">
             {(website?.cms ?? env().PUBLISH_ADAPTER) === "local_static"
               ? "Writes a complete HTML document to the published directory. The app serves it at /site/*, so the crawler can fetch the real page back over HTTP."
-              : "Publishes through the configured CMS integration."}
+              : (website?.cms ?? env().PUBLISH_ADAPTER) === "database"
+                ? "Stores the rendered HTML in the database. Used on serverless platforms (Vercel) where the filesystem is ephemeral."
+                : "Publishes through the configured CMS integration."}
           </p>
           <div className="mt-3">
             <Mono>{env().PUBLISH_LOCAL_DIR}</Mono>
