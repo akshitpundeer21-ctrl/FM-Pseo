@@ -931,6 +931,38 @@
       ]
     },
     {
+      "id": "JFK-LHR",
+      "origin": "JFK",
+      "destination": "LHR",
+      "originCity": "New York",
+      "destinationCity": "London",
+      "originCountry": "United States",
+      "destinationCountry": "United Kingdom",
+      "distanceKm": 5570,
+      "typicalStops": 0,
+      "typicalDurationMinutes": 429,
+      "nonstopAvailable": true,
+      "airlines": [
+        "BA",
+        "VS",
+        "AA",
+        "DL",
+        "B6"
+      ],
+      "demandIndex": 97,
+      "peakMonths": [
+        "Jun",
+        "Jul",
+        "Dec"
+      ],
+      "cabinClasses": [
+        "ECONOMY",
+        "PREMIUM_ECONOMY",
+        "BUSINESS",
+        "FIRST"
+      ]
+    },
+    {
       "id": "YYZ-LHR",
       "origin": "YYZ",
       "destination": "LHR",

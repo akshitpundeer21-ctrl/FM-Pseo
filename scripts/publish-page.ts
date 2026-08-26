@@ -15,7 +15,10 @@ import { TravelDbAdapter } from "@/engine/data/adapters/travel-db";
 import { materialise, type DataPoint } from "@/engine/data/types";
 import { MockLlmProvider } from "@/llm/providers/mock";
 import { DEFAULT_BRAND } from "@/modules/brand/brand";
+import { BundledReferenceProvider } from "@/modules/travel/providers/bundled";
+import { ingestFromProvider } from "@/modules/travel/ingest";
 import { env } from "@/core/config/env";
+import { prisma } from "@/core/db/client";
 import fs from "node:fs/promises";
 import path from "node:path";
 
@@ -25,6 +28,9 @@ async function main() {
     console.error("Usage: npx tsx scripts/publish-page.ts <ORIGIN_IATA> <DEST_IATA>");
     process.exit(1);
   }
+
+  // Ensure travel data (including any new routes) is in the database
+  await ingestFromProvider(new BundledReferenceProvider());
 
   const routes = loadRoutes();
   const route = routes.find((r: any) => r.origin === origin && r.destination === destination);
@@ -218,6 +224,54 @@ async function main() {
     usedMock: composed.usedMock,
   };
   await fs.writeFile(outFile.replace(/\.html$/, ".json"), JSON.stringify(sidecar, null, 2), "utf8");
+
+  // Publish to database so Vercel can serve the page
+  try {
+    const project = await prisma.project.findFirst();
+    if (!project) throw new Error("No project in database — run seed first");
+
+    const routeFamily = await prisma.pageFamily.findFirst({
+      where: { projectId: project.id, key: "route" },
+    });
+    const template = await prisma.template.findFirst({
+      where: { projectId: project.id, key: { startsWith: "route_v" } },
+      orderBy: { version: "desc" },
+    });
+
+    const page = await prisma.page.upsert({
+      where: {
+        projectId_url: { projectId: project.id, url },
+      },
+      update: {
+        title: composed.title,
+        metaDescription: composed.metaDescription,
+        status: "PUBLISHED",
+        publishedHtml: doc,
+        publishedAt: new Date(),
+        qualityScore: 65,
+        variablesJson: JSON.stringify(variables),
+      },
+      create: {
+        projectId: project.id,
+        pageFamilyId: routeFamily?.id ?? null,
+        templateId: template?.id ?? null,
+        url,
+        title: composed.title,
+        metaDescription: composed.metaDescription,
+        status: "PUBLISHED",
+        publishedHtml: doc,
+        publishedAt: new Date(),
+        qualityScore: 65,
+        variablesJson: JSON.stringify(variables),
+      },
+    });
+
+    console.log(`\n  Database: page stored (id: ${page.id})`);
+    console.log(`  Vercel URL: ${appUrl}/site${url}`);
+  } catch (dbErr) {
+    console.error("\n  Database publish failed:", dbErr);
+    console.log("  (Local file was still written successfully)");
+  }
 
   console.log(`\nPublished: ${url}`);
   console.log(`  File: ${outFile}`);
