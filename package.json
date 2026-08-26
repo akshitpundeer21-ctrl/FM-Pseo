@@ -22,7 +22,7 @@
     "e2e": "tsx scripts/e2e-workflow.ts",
     "check:env": "tsx scripts/check-env.ts",
     "postinstall": "prisma generate",
-    "vercel-build": "prisma generate && prisma db push && next build"
+    "vercel-build": "prisma generate && next build"
   },
   "prisma": {
     "seed": "tsx scripts/seed.ts"
