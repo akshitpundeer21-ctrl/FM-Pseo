@@ -201,6 +201,58 @@ ${
   },
 };
 
+const valueProposition: ComponentDefinition = {
+  key: "value_proposition",
+  name: "Value proposition",
+  category: "LAYOUT",
+  description: "Three short USP bullets framing what the page offers, placed below the search dock.",
+  version: 1,
+  contentSource: "TEMPLATE",
+  requiredBindings: ["origin.city", "destination.city"],
+  optionalBindings: [],
+  aiSlots: [],
+  defaults: {},
+  render({ values }) {
+    const o = S(lookup(values, "origin.city"));
+    const d = S(lookup(values, "destination.city"));
+    const usps = [
+      { icon: "compare_arrows", text: `Compare ${o} to ${d} flight deals` },
+      { icon: "calendar_month", text: "Find the cheapest month or even day to fly" },
+      { icon: "check_circle", text: "Book the best fare with no extra fees" },
+    ];
+    const html = `      <div class="usp-row">${usps
+      .map((u) => `<div class="usp"><span class="msi">${u.icon}</span>${escapeHtml(u.text)}</div>`)
+      .join("")}</div>`;
+    return { html, text: usps.map((u) => u.text).join(". "), usedPaths: ["origin.city", "destination.city"] };
+  },
+};
+
+const sectionNav: ComponentDefinition = {
+  key: "section_nav",
+  name: "Section navigation",
+  category: "LAYOUT",
+  description: "Sticky horizontal tab bar linking to page sections for quick navigation.",
+  version: 1,
+  contentSource: "TEMPLATE",
+  requiredBindings: [],
+  optionalBindings: [],
+  aiSlots: [],
+  defaults: {},
+  render() {
+    const tabs = [
+      { label: "Flight deals", href: "#fares" },
+      { label: "Cheapest month", href: "#price-by-week" },
+      { label: "Route info", href: "#route-summary" },
+      { label: "FAQs", href: "#faq" },
+      { label: "Tips & advice", href: "#tips" },
+    ];
+    const html = `      <nav class="section-nav" aria-label="Page sections">${tabs
+      .map((t) => `<a href="${t.href}">${escapeHtml(t.label)}</a>`)
+      .join("")}</nav>`;
+    return { html, text: "", usedPaths: [] };
+  },
+};
+
 const hero: ComponentDefinition = {
   key: "hero",
   name: "Hero",
@@ -957,6 +1009,8 @@ const cta: ComponentDefinition = {
 export const COMPONENT_LIBRARY: ComponentDefinition[] = [
   breadcrumb,
   searchBox,
+  valueProposition,
+  sectionNav,
   hero,
   heroPhoto,
   fareHero,
@@ -996,18 +1050,19 @@ export const ROUTE_TEMPLATE_BLOCKS: {
   { componentKey: "breadcrumb", isRequired: false },
   { componentKey: "search_box", isRequired: false },
   { componentKey: "hero", isRequired: true },
-  { componentKey: "hero_photo", isRequired: false },
+  { componentKey: "value_proposition", isRequired: false },
+  { componentKey: "section_nav", isRequired: false },
   { componentKey: "fare_hero", isRequired: false, condition: "offers.cheapestPrice" },
-  { componentKey: "answer_block", isRequired: true },
-  { componentKey: "route_summary", isRequired: true },
-  { componentKey: "route_overview", isRequired: true },
   { componentKey: "flight_options", isRequired: false, condition: "offers.items" },
   { componentKey: "price_by_week", isRequired: false, condition: "offers.weeklySeries" },
   { componentKey: "airline_cards", isRequired: false, condition: "route.airlines" },
   { componentKey: "airport_cards", isRequired: false },
-  { componentKey: "things_to_do", isRequired: false, condition: "destination.attractions" },
-  { componentKey: "travel_tips", isRequired: false },
+  { componentKey: "route_summary", isRequired: true },
+  { componentKey: "answer_block", isRequired: true },
   { componentKey: "faq", isRequired: true },
+  { componentKey: "route_overview", isRequired: true },
+  { componentKey: "travel_tips", isRequired: false },
+  { componentKey: "things_to_do", isRequired: false, condition: "destination.attractions" },
   { componentKey: "comparison_table", isRequired: false },
   { componentKey: "related_routes", isRequired: false },
   { componentKey: "related_destinations", isRequired: false },
@@ -1017,4 +1072,4 @@ export const ROUTE_TEMPLATE_BLOCKS: {
 ];
 
 /** Bumped when the block list changes, so a fresh template is built. */
-export const ROUTE_TEMPLATE_VERSION = 2;
+export const ROUTE_TEMPLATE_VERSION = 3;

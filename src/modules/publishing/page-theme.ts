@@ -163,6 +163,14 @@ a.chip:hover{border-color:var(--brand);color:var(--brand-ink)}
 
 .trust{color:var(--ink-muted);font-size:13px;max-width:70ch}
 
+.usp-row{display:flex;gap:20px;flex-wrap:wrap;margin:18px 0 4px}
+.usp{display:flex;align-items:center;gap:8px;font-size:14px;font-weight:600;color:var(--ink-muted)}
+.usp .msi{font-size:20px;color:var(--cta)}
+
+.section-nav{display:flex;gap:0;margin:10px 0 0;border-bottom:2px solid var(--rule);position:sticky;top:0;background:var(--bg);z-index:10;overflow-x:auto;-webkit-overflow-scrolling:touch}
+.section-nav a{padding:12px 20px;font-size:14px;font-weight:600;color:var(--ink-muted);text-decoration:none;border-bottom:2px solid transparent;margin-bottom:-2px;white-space:nowrap;transition:color .15s,border-color .15s}
+.section-nav a:hover,.section-nav a:focus{color:var(--brand-ink);border-bottom-color:var(--brand)}
+
 footer.site{border-top:1px solid var(--rule);margin-top:30px}
 footer.site .inner{max-width:1000px;margin:0 auto;padding:26px 24px 44px;color:var(--ink-muted);font-size:12px;display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px}
 
