@@ -19,7 +19,7 @@ import { writeJson } from "../src/core/db/json";
 import { AGENT_DEFINITIONS } from "../src/agents/definitions";
 import { SKILLS, AGENT_SKILL_MAP } from "../src/skills/definitions";
 import { enrichMigratedVersions, seedSkills } from "./_seed-skills";
-import { COMPONENT_LIBRARY } from "../src/engine/templates/component-library";
+import { COMPONENT_LIBRARY, ROUTE_TEMPLATE_BLOCKS, ROUTE_TEMPLATE_VERSION } from "../src/engine/templates/component-library";
 import { DEFAULT_BRAND } from "../src/modules/brand/brand";
 import { WORKFLOWS } from "../src/engine/workflow/definitions";
 import { loadCompetitors } from "../src/engine/data/adapters/static-dataset";
@@ -289,6 +289,49 @@ async function main() {
     });
   }
   console.log(`  page families ${families.length} (1 active: route)`);
+
+  // --- route template + blocks -----------------------------------------------
+  const routeFamily = await prisma.pageFamily.findUnique({
+    where: { projectId_key: { projectId: project.id, key: "route" } },
+  });
+  if (routeFamily) {
+    const template = await prisma.template.upsert({
+      where: { id: `tpl_route_${project.id}` },
+      update: { version: ROUTE_TEMPLATE_VERSION },
+      create: {
+        id: `tpl_route_${project.id}`,
+        projectId: project.id,
+        pageFamilyId: routeFamily.id,
+        key: "route_v" + ROUTE_TEMPLATE_VERSION,
+        name: "Route page (Skyscanner-inspired)",
+        description: "Ordered block list for route pages: USPs, section nav, deals-first flow, FAQ before long-form.",
+        version: ROUTE_TEMPLATE_VERSION,
+        seoConfigJson: writeJson({
+          titlePattern: "Cheap Flights from {origin} to {destination} | FaresMatch",
+          metaPattern: "Compare {origin} to {destination} flights. Find the cheapest month, airlines, airports and travel tips.",
+        }),
+      },
+    });
+
+    await prisma.templateBlock.deleteMany({ where: { templateId: template.id } });
+
+    for (const [i, block] of ROUTE_TEMPLATE_BLOCKS.entries()) {
+      const comp = await prisma.componentDef.findUnique({ where: { key: block.componentKey } });
+      if (!comp) continue;
+      await prisma.templateBlock.create({
+        data: {
+          templateId: template.id,
+          componentId: comp.id,
+          sequence: i * 10,
+          configJson: writeJson(block.config ?? {}),
+          condition: block.condition ?? null,
+          isRequired: block.isRequired,
+          contentSource: COMPONENT_LIBRARY.find((c) => c.key === block.componentKey)?.contentSource ?? "HYBRID",
+        },
+      });
+    }
+    console.log(`  template      route_v${ROUTE_TEMPLATE_VERSION} with ${ROUTE_TEMPLATE_BLOCKS.length} blocks`);
+  }
 
   // --- travel data layer ----------------------------------------------------
   // Normalizes the bundled reference files into the travel tables. Safe to
