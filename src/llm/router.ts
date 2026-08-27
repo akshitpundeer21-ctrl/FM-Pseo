@@ -17,6 +17,7 @@ import { scopedLogger } from "@/core/logging/logger";
 import type { ModelTier } from "@/core/types/enums";
 import { AnthropicProvider } from "@/llm/providers/anthropic";
 import { OpenAiProvider } from "@/llm/providers/openai";
+import { GeminiProvider } from "@/llm/providers/gemini";
 import { MockLlmProvider } from "@/llm/providers/mock";
 import type { LlmProvider, LlmRequest, LlmResponse } from "@/llm/types";
 
@@ -48,6 +49,7 @@ export class LlmRouter {
     this.providers = [
       new AnthropicProvider(ctx.credentials?.anthropic),
       new OpenAiProvider(ctx.credentials?.openai),
+      new GeminiProvider(ctx.credentials?.gemini),
     ];
     this.ctx = ctx;
   }
@@ -90,7 +92,7 @@ export class LlmRouter {
     }
 
     if (this.ctx.allowMock === false || (!env().DEMO_MODE && preferred !== "mock")) {
-      throw new IntegrationNotConfiguredError("llm", ["ANTHROPIC_API_KEY or OPENAI_API_KEY"]);
+      throw new IntegrationNotConfiguredError("llm", ["ANTHROPIC_API_KEY, OPENAI_API_KEY, or GOOGLE_AI_API_KEY"]);
     }
     tier = "fast";
     return { provider: this.mock, tier, model: "mock", reason: "no LLM credentials configured; using deterministic mock" };

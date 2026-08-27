@@ -59,6 +59,8 @@ const EnvSchema = z.object({
   ANTHROPIC_BASE_URL: str("https://api.anthropic.com"),
   OPENAI_API_KEY: str(""),
   OPENAI_BASE_URL: str("https://api.openai.com/v1"),
+  GOOGLE_AI_API_KEY: str(""),
+  GEMINI_BASE_URL: str("https://generativelanguage.googleapis.com"),
   LLM_MODEL_FAST: str("claude-haiku-4-5-20251001"),
   LLM_MODEL_BALANCED: str("claude-sonnet-5"),
   LLM_MODEL_DEEP: str("claude-opus-5"),
@@ -153,6 +155,7 @@ export function envIntegrationStatus() {
   return {
     anthropic: Boolean(e.ANTHROPIC_API_KEY),
     openai: Boolean(e.OPENAI_API_KEY),
+    gemini: Boolean(e.GOOGLE_AI_API_KEY),
     dataforseo: Boolean(e.DATAFORSEO_LOGIN && e.DATAFORSEO_PASSWORD),
     serp: Boolean(e.SERP_PROVIDER_KEY),
     google: Boolean(e.GOOGLE_SERVICE_ACCOUNT_JSON || e.GOOGLE_OAUTH_REFRESH_TOKEN),

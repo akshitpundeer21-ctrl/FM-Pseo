@@ -67,6 +67,8 @@ export const PRICING: Record<string, ModelPricing> = {
   "gpt-4.1": { inputPerMTok: 2, outputPerMTok: 8 },
   "gpt-4.1-mini": { inputPerMTok: 0.4, outputPerMTok: 1.6 },
   "gpt-4o-mini": { inputPerMTok: 0.15, outputPerMTok: 0.6 },
+  "gemini-2.5-pro": { inputPerMTok: 1.25, outputPerMTok: 10 },
+  "gemini-2.0-flash": { inputPerMTok: 0.1, outputPerMTok: 0.4 },
   mock: { inputPerMTok: 0, outputPerMTok: 0 },
 };
 
